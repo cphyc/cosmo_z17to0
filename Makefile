@@ -1,5 +1,5 @@
 CC=ifort
-CFLAGS=-O3
+CFLAGS=-O3 -traceback
 LFLAGS=
 SRCFILES=$(shell find . -type f -name "*.f90")
 BINFOLDER=bins
@@ -13,7 +13,7 @@ $(BINFOLDER)/%: %.f90 Makefile
 	$(CC) $(CFLAGS) -o $@ $<
 
 todolist:
-	-@for file in $(ALLFILES:Makefile=); do fgrep -H -e TODO -e FIXME $$file; done; true
+	-@for file in $(SRCFILES:Makefile=); do fgrep -H -e TODO -e FIXME $$file; done; true
 
 
 clean:
