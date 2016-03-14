@@ -1,4 +1,6 @@
 program sort_galaxy
+  use hashtbl
+  use convert
   implicit none
   character(LEN=128) :: gal_list_filename, repository, outfile, fileinfo='none', halogalfile
   character(LEN=128) :: dm_halo_list_filename, dm_gal_assoc, associations_filename
@@ -14,6 +16,10 @@ program sort_galaxy
   real(kind=4) :: sigma
   real(kind=4) :: elliptical_threshold = 1.5d0 ! FIXME
   real(kind=4) :: spiral_threshold = 0.8d0 ! FIXME
+
+  character(LEN=20) :: gal_num, halo_num
+  type(hash_tbl_sll) :: gal_to_halo
+  character(LEN=:), allocatable :: hashmap_char
 
   !-------------------------------------
   ! Read parameters
@@ -60,6 +66,7 @@ program sort_galaxy
   !-------------------------------------
   ! Processing
   !-------------------------------------
+  print*, 'Sorting galaxies (ellipticals/spirals) using v/sigma criterion…'
   do i = 1, ngal
      sigma = 1d0/3d0 * sqrt(data_gal(i, 3)**2 + data_gal(i, 4)**2 + data_gal(i, 5)**2)
      if (sigma / data_gal(i, 2) > elliptical_threshold) then
@@ -74,11 +81,39 @@ program sort_galaxy
 
   end do
 
-  ! Sort the galaxies
-  print*, ellipticals*100./ngal, "% ellipticals"
-  print*, spirals*100./ngal, "% spirals"
-  print*, 100 - (ellipticals + spirals)*100./ngal, "% others"
+  print*, 'Associating galaxies to halo…'
+  call gal_to_halo%init(nassoc)
+  do i = 1, nassoc
+     if (mod(i, nassoc/25) == 0) then
+        print*, int(dble(i) / nassoc * 100), '%'
+     end if
+     gal_num = itos(int(associations(i, 4)))
+     halo_num = itos(int(associations(i, 1)))
 
+     call gal_to_halo%put(gal_num, halo_num)
+  end do
+
+  print*, 'Some statistics…'
+  ! Sort the galaxies
+  print*, int(ellipticals*100./ngal), "% ellipticals"
+  print*, int(spirals*100./ngal), "% spirals"
+  print*, int(100 - (ellipticals + spirals)*100./ngal), "% others"
+
+  !-------------------------------------
+  ! Test
+  !-------------------------------------
+  ! FIXME: do it for each galaxy!
+  do i = 1, ngal
+     ! Find halo related to galaxy in association table
+     gal_num = itos(int(data_gal(i, 0)))
+     call gal_to_halo%get(gal_num, hashmap_char)
+     if (allocated(hashmap_char)) then
+        print*, hashmap_char
+     end if
+
+     ! Find particles in halo
+     ! Loop back in time
+  end do
 
   !-------------------------------------
   ! Cleanup
@@ -89,6 +124,7 @@ program sort_galaxy
   deallocate(data_gal)
   deallocate(data_halo)
   deallocate(associations)
+  call gal_to_halo%free()
 
 contains
   subroutine read_params ()
