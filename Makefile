@@ -2,12 +2,13 @@ CC=ifort
 CFLAGS=-O3
 LFLAGS=
 SRCFILES=$(shell find . -type f -name "*.f90")
-BINFILES=$(patsubst %.f90,%,$(SRCFILES))
+BINFOLDER=bins
+BINFILES=$(patsubst %.f90,$(BINFOLDER)/%,$(SRCFILES))
 
 all: $(BINFILES)
 	echo $(WILDCARD *.f90)
 
-%: %.f90 Makefile
+$(BINFOLDER)/%: %.f90 Makefile
 	$(CC) $(CFLAGS) -o $@ $<
 
 todolist:
