@@ -9,6 +9,7 @@ all: $(BINFILES)
 	echo $(WILDCARD *.f90)
 
 $(BINFOLDER)/%: %.f90 Makefile
+	@mkdir -p $(BINFOLDER)
 	$(CC) $(CFLAGS) -o $@ $<
 
 todolist:
