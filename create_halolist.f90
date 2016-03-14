@@ -117,10 +117,10 @@ program create_halolist
   close(20)
 
 contains
-  
+
   subroutine read_info
     implicit none
-    
+
     integer::ipos
     character(LEN=5)::nchar
 
@@ -160,15 +160,15 @@ contains
   end subroutine read_info
 
   subroutine read_params
-    
+
     implicit none
-    
+
     integer       :: i,n
     integer       :: iargc
     character(len=4)   :: opt
     character(len=128) :: arg
     LOGICAL       :: bad, ok
-    
+
     n = iargc()
     if (n < 4) then
        print *, 'usage: create_halolist -inp  input_dir'
@@ -185,7 +185,7 @@ contains
             &   ' -xmi 0.1 -xma 0.7 -mmi 1d11 -mma 1d12'
        stop
     end if
-    
+
     do i = 1,n,2
        call getarg(i,opt)
        if (i == n) then
@@ -228,10 +228,10 @@ contains
           print '("unknown option ",a2," ignored")', opt
        end select
     end do
-    
+
     return
-    
+
   end subroutine read_params
-  
+
 
 end program create_halolist
