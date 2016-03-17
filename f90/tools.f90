@@ -1,14 +1,15 @@
 subroutine hilbert3D(x, y, z, bit_length, npoint, order)
     implicit none
 
-  integer     ,INTENT(IN)                      ::bit_length,npoint
-  integer     ,INTENT(IN) ,dimension(1:npoint) ::x,y,z
-  real(kind=8),INTENT(OUT),dimension(1:npoint) ::order
+  integer     , INTENT(IN)                       :: bit_length, npoint
+  integer     , INTENT(IN) , dimension(1:npoint) :: x, y, z
+  real(kind = 8), INTENT(OUT), dimension(1:npoint) :: order
 
-  logical,dimension(0:3*bit_length-1)          ::i_bit_mask
-  logical,dimension(0:1*bit_length-1)          ::x_bit_mask,y_bit_mask,z_bit_mask
-  integer,dimension(0:7,0:1,0:11)              ::state_diagram
-  integer                                      ::i,ip,cstate,nstate,b0,b1,b2,sdigit,hdigit
+  logical, dimension(0:3*bit_length-1)           :: i_bit_mask
+  logical, dimension(0:1*bit_length-1)           :: x_bit_mask, y_bit_mask, z_bit_mask
+  integer, dimension(0:7, 0:1, 0:11)             :: state_diagram
+  integer                                        :: i, ip, cstate, nstate, b0, b1, b2
+  integer                                        :: digit, hdigit
 
   if(bit_length>bit_size(bit_length))then
      write(*,*)'Maximum bit length=',bit_size(bit_length)
@@ -42,127 +43,124 @@ subroutine hilbert3D(x, y, z, bit_length, npoint, order)
                             &   6, 1, 7, 0, 5, 2, 4, 3 /), &
                             & (/8 ,2, 12 /) )
 
-  do ip=1,npoint
+  do ip = 1,npoint
 
      ! convert to binary
-     do i=0,bit_length-1
-        x_bit_mask(i)=btest(x(ip),i)
-        y_bit_mask(i)=btest(y(ip),i)
-        z_bit_mask(i)=btest(z(ip),i)
+     do i = 0,bit_length-1
+        x_bit_mask(i) = btest(x(ip),i)
+        y_bit_mask(i) = btest(y(ip),i)
+        z_bit_mask(i) = btest(z(ip),i)
      enddo
 
      ! interleave bits
-     do i=0,bit_length-1
-        i_bit_mask(3*i+2)=x_bit_mask(i)
-        i_bit_mask(3*i+1)=y_bit_mask(i)
-        i_bit_mask(3*i  )=z_bit_mask(i)
+     do i = 0,bit_length-1
+        i_bit_mask(3*i+2) = x_bit_mask(i)
+        i_bit_mask(3*i+1) = y_bit_mask(i)
+        i_bit_mask(3*i  ) = z_bit_mask(i)
      end do
 
      ! build Hilbert ordering using state diagram
-     cstate=0
-     do i=bit_length-1,0,-1
-        b2=0 ; if(i_bit_mask(3*i+2))b2=1
-        b1=0 ; if(i_bit_mask(3*i+1))b1=1
-        b0=0 ; if(i_bit_mask(3*i  ))b0=1
-        sdigit=b2*4+b1*2+b0
-        nstate=state_diagram(sdigit,0,cstate)
-        hdigit=state_diagram(sdigit,1,cstate)
-        i_bit_mask(3*i+2)=btest(hdigit,2)
-        i_bit_mask(3*i+1)=btest(hdigit,1)
-        i_bit_mask(3*i  )=btest(hdigit,0)
-        cstate=nstate
+     cstate = 0
+     do i = bit_length-1,0,-1
+        b2 = 0 ; if(i_bit_mask(3*i+2))b2 = 1
+        b1 = 0 ; if(i_bit_mask(3*i+1))b1 = 1
+        b0 = 0 ; if(i_bit_mask(3*i  ))b0 = 1
+        sdigit = b2*4+b1*2+b0
+        nstate = state_diagram(sdigit,0,cstate)
+        hdigit = state_diagram(sdigit,1,cstate)
+        i_bit_mask(3*i+2) = btest(hdigit,2)
+        i_bit_mask(3*i+1) = btest(hdigit,1)
+        i_bit_mask(3*i  ) = btest(hdigit,0)
+        cstate = nstate
      enddo
 
      ! save Hilbert key as double precision real
-     order(ip)=0.
-     do i=0,3*bit_length-1
-        b0=0 ; if(i_bit_mask(i))b0=1
-        order(ip)=order(ip)+dble(b0)*dble(2)**i
+     order(ip) = 0.
+     do i = 0,3*bit_length-1
+        b0 = 0 ; if(i_bit_mask(i))b0 = 1
+        order(ip) = order(ip)+dble(b0)*dble(2)**i
      end do
 
   end do
 
 end subroutine hilbert3D
 
-subroutine get_cpu_list(xmin, xmax, ymin, ymax, zmin, zmax, levelmax, bound_key, cpu_list)
-  real(kind=8),  intent(in)              :: xmin, xmax, ymin, ymax, zmin, zmax
-  real(kind=8), dimension(4096), intent(in) :: bound_key
+subroutine get_cpu_list(xmin, xmax, ymin, ymax, zmin, zmax, levelmax, bound_key, ndump, cpu_list)
+  real(kind = 8),  intent(in)                 :: xmin, xmax, ymin, ymax, zmin, zmax, ndump
+  real(kind = 8), dimension(ndump), intent(in) :: bound_key
 
-  integer, dimension(4096), intent(out)     :: cpu_list
-  logical, dimension(4096)     :: cpu_read
+  integer, dimension(ndump), intent(out)     :: cpu_list
+  logical, dimension(ndump)                  :: cpu_read
 
-  integer                                :: imin, imax, jmin, jmax, kmin, kmax, lmin, ipart
-  integer                                :: ilevel, bit_length, maxdom
-  real(kind=8), dimension(1:8)           :: bounding_min, bounding_max
-  real(kind=8)                           :: dkey, order_min, dmax, deltax
-  integer, dimension(1:8)                :: idom, jdom, kdom, cpu_min, cpu_max
+  integer                                   :: imin, imax, jmin, jmax, kmin, kmax, lmin, ipart
+  integer                                   :: ilevel, bit_length, maxdom
+  real(kind = 8), dimension(1:8)              :: bounding_min, bounding_max
+  real(kind = 8)                              :: dkey, order_min, dmax, deltax
+  integer, dimension(1:8)                   :: idom, jdom, kdom, cpu_min, cpu_max
 
-  ! allocate(cpu_list(ncpu))
-  ! allocate(cpu_read(4096))
-
-  dmax=max(xmax-xmin,ymax-ymin,zmax-zmin)
-  do ilevel=1,levelmax
-     deltax=0.5d0**ilevel
+  dmax = max(xmax-xmin,ymax-ymin,zmax-zmin)
+  do ilevel = 1,levelmax
+     deltax = 0.5d0**ilevel
      if(deltax.lt.dmax)exit
   end do
-  lmin=ilevel
-  bit_length=lmin-1
-  maxdom=2**bit_length
-  imin=0; imax=0; jmin=0; jmax=0; kmin=0; kmax=0
+  lmin = ilevel
+  bit_length = lmin-1
+  maxdom = 2**bit_length
+  imin = 0; imax = 0; jmin = 0; jmax = 0; kmin = 0; kmax = 0
   if(bit_length>0)then
-     imin=int(xmin*dble(maxdom))
-     imax=imin+1
-     jmin=int(ymin*dble(maxdom))
-     jmax=jmin+1
-     kmin=int(zmin*dble(maxdom))
-     kmax=kmin+1
+     imin = int(xmin*dble(maxdom))
+     imax = imin+1
+     jmin = int(ymin*dble(maxdom))
+     jmax = jmin+1
+     kmin = int(zmin*dble(maxdom))
+     kmax = kmin+1
   endif
 
-  dkey=(dble(2**(levelmax+1)/dble(maxdom)))**ndim
-  ndom=1
-  if(bit_length>0)ndom=8
-  idom(1)=imin; idom(2)=imax
-  idom(3)=imin; idom(4)=imax
-  idom(5)=imin; idom(6)=imax
-  idom(7)=imin; idom(8)=imax
-  jdom(1)=jmin; jdom(2)=jmin
-  jdom(3)=jmax; jdom(4)=jmax
-  jdom(5)=jmin; jdom(6)=jmin
-  jdom(7)=jmax; jdom(8)=jmax
-  kdom(1)=kmin; kdom(2)=kmin
-  kdom(3)=kmin; kdom(4)=kmin
-  kdom(5)=kmax; kdom(6)=kmax
-  kdom(7)=kmax; kdom(8)=kmax
+  dkey = (dble(2**(levelmax+1)/dble(maxdom)))**ndim
+  ndom = 1
+  if(bit_length>0)ndom = 8
+  idom(1) = imin; idom(2) = imax
+  idom(3) = imin; idom(4) = imax
+  idom(5) = imin; idom(6) = imax
+  idom(7) = imin; idom(8) = imax
+  jdom(1) = jmin; jdom(2) = jmin
+  jdom(3) = jmax; jdom(4) = jmax
+  jdom(5) = jmin; jdom(6) = jmin
+  jdom(7) = jmax; jdom(8) = jmax
+  kdom(1) = kmin; kdom(2) = kmin
+  kdom(3) = kmin; kdom(4) = kmin
+  kdom(5) = kmax; kdom(6) = kmax
+  kdom(7) = kmax; kdom(8) = kmax
 
-  do i=1,ndom
+  do i = 1,ndom
      if(bit_length>0)then
         call hilbert3d(idom(i),jdom(i),kdom(i),order_min,bit_length,1)
      else
-        order_min=0.0d0
+        order_min = 0.0d0
      endif
-     bounding_min(i)=(order_min)*dkey
-     bounding_max(i)=(order_min+1.0D0)*dkey
+     bounding_min(i) = (order_min)*dkey
+     bounding_max(i) = (order_min+1.0D0)*dkey
   end do
-  cpu_min=0; cpu_max=0
-  do impi=1,ncpu
-     do i=1,ndom
+  cpu_min = 0; cpu_max = 0
+  do impi = 1,ncpu
+     do i = 1,ndom
         if (   bound_key(impi-1).le.bounding_min(i).and.&
              & bound_key(impi  ).gt.bounding_min(i))then
-           cpu_min(i)=impi
+           cpu_min(i) = impi
         endif
         if (   bound_key(impi-1).lt.bounding_max(i).and.&
              & bound_key(impi  ).ge.bounding_max(i))then
-           cpu_max(i)=impi
+           cpu_max(i) = impi
         endif
      end do
   end do
-  ncpu_read=0
-  do i=1,ndom
-     do j=cpu_min(i),cpu_max(i)
+  ncpu_read = 0
+  do i = 1,ndom
+     do j = cpu_min(i),cpu_max(i)
         if(.not. cpu_read(j))then
-           ncpu_read=ncpu_read+1
-           cpu_list(ncpu_read)=j
-           cpu_read(j)=.true.
+           ncpu_read = ncpu_read+1
+           cpu_list(ncpu_read) = j
+           cpu_read(j) = .true.
         endif
      enddo
   enddo
