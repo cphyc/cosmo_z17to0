@@ -127,7 +127,6 @@ contains
     endif
 
     dkey = (dble(2**(levelmax+1)/dble(maxdom)))**ndim
-    print*, 'dkey', dkey, levelmax, maxdom, ndim
     ndom = 1
     if (bit_length>0)ndom = 8
     idom(1) = imin; idom(2) = imax
@@ -151,8 +150,7 @@ contains
        endif
        bounding_min(i) = (order_min(1))*dkey
        bounding_max(i) = (order_min(1)+1.0D0)*dkey
-       ! print*, 'ORDER', order_min, dkey
-       ! print*, bounding_min
+
     end do
     cpu_min = 0; cpu_max = 0
     do impi = 1, ncpu
@@ -168,11 +166,7 @@ contains
        end do
     end do
     ncpu_read = 0
-    print*, bounding_min
-    print*, bounding_max
 
-    print*, cpu_min
-    print*, cpu_max
     do i = 1, ndom
        do j = cpu_min(i), cpu_max(i)
           if (.not. cpu_read(j)) then
