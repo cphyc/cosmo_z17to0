@@ -1,4 +1,4 @@
-module tools
+module misc
   implicit none
 contains
   subroutine hilbert3D(x, y, z, order, bit_length, npoint)
@@ -87,6 +87,55 @@ contains
     end do
 
   end subroutine hilbert3D
+
+  recursive subroutine quick_sort_1(left_end, right_end)
+
+    integer, intent(in) :: left_end, right_end
+
+    !     local variables
+    integer             :: i, j, itemp
+    integer(i8b)        :: reference, temp
+    integer, parameter  :: max_simple_sort_size = 6
+
+    if (right_end < left_end + max_simple_sort_size) then
+       ! use interchange sort for small lists
+       call interchange_sort(left_end, right_end)
+
+    else
+       ! use partition ("quick") sort
+       reference = list((left_end + right_end)/2)
+       i = left_end - 1; j = right_end + 1
+
+       do
+          ! scan list from left end until element >= reference is found
+          do
+             i = i + 1
+             if (list(i) >= reference) exit
+          end do
+          ! scan list from right end until element <= reference is found
+          do
+             j = j - 1
+             if (list(j) <= reference) exit
+          end do
+
+
+          if (i < j) then
+             ! swap two out-of-order elements
+             temp = list(i); list(i) = list(j); list(j) = temp
+             itemp = order(i); order(i) = order(j); order(j) = itemp
+          else if (i == j) then
+             i = i + 1
+             exit
+          else
+             exit
+          end if
+       end do
+
+       if (left_end < j) call quick_sort_1(left_end, j)
+       if (i < right_end) call quick_sort_1(i, right_end)
+    end if
+
+  end subroutine quick_sort_1
 
   subroutine get_cpu_list(X0, X1, levelmax, bound_key, cpu_list, ncpu, ndim)
     real(kind = 8), intent(in)                   :: ncpu, ndim, levelmax
@@ -179,4 +228,66 @@ contains
 
     ! deallocate(cpu_read)
   end subroutine get_cpu_list
-end module tools
+  
+end module cpus
+
+module io
+  implicit none
+  real(kind = 8), dimension(:), allocatable :: bound_key
+  integer                                   :: ncpu, ndim, levelmin, levelmax
+contains
+  subroutine read_info(filename)
+    character(len=*), intent(in)                           :: filename
+
+    logical                                                :: ok
+    integer                                                :: impi, i
+    real(kind = 8)                                         :: t, aexp, unit_l, unit_t
+    character(len=80)                                      :: ordering
+
+    inquire(file=filename, exist=ok)
+    if (.not. ok) then
+       print*, filename // ' not found'
+       stop
+    end if
+
+    open(unit=10, file=filename, form='formatted', status='old')
+    read(10,'("ncpu        =",I11)') ncpu
+    read(10,'("ndim        =",I11)') ndim
+    read(10,'("levelmin    =",I11)') levelmin
+    read(10,'("levelmax    =",I11)') levelmax
+    read(10,*)
+    read(10,*)
+    read(10,*)
+
+    read(10,*)
+    read(10,'("time        =",E23.15)') t
+    read(10,'("aexp        =",E23.15)') aexp
+    read(10,*)
+    read(10,*)
+    read(10,*)
+    read(10,*)
+    read(10,*)
+    read(10,'("unit_l      =",E23.15)') unit_l
+    read(10,*)
+    read(10,'("unit_t      =",E23.15)') unit_t
+
+    read(10,*)
+    read(10,'("ordering type=",A80)') ordering
+    read(10,*)
+
+    if (TRIM(ordering) == 'hilbert') then
+       allocate(bound_key(0:ncpu))
+       do impi = 1,ncpu
+          read(10,'(I8,1X,E23.15,1X,E23.15)') i, bound_key(impi-1), bound_key(impi)
+       end do
+    endif
+    close(10)
+  end subroutine read_info
+
+  subroutine free ()
+    if (allocated(bound_key)) then
+       deallocate(bound_key)
+    end if
+  end subroutine free
+
+end module io
