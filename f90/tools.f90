@@ -1,10 +1,10 @@
 module tools
 contains
-  subroutine hilbert3D(x, y, z, bit_length, npoint, order)
+  subroutine hilbert3D(x, y, z, order, bit_length, npoint)
     implicit none
 
-    integer     , INTENT(IN)                       :: bit_length, npoint
-    integer     , INTENT(IN) , dimension(1:npoint) :: x, y, z
+    integer       , INTENT(IN)                       :: bit_length, npoint
+    integer       , INTENT(IN) , dimension(1:npoint) :: x, y, z
     real(kind = 8), INTENT(OUT), dimension(1:npoint) :: order
 
     logical, dimension(0:3*bit_length-1)           :: i_bit_mask
@@ -87,18 +87,23 @@ contains
 
   end subroutine hilbert3D
 
-  subroutine get_cpu_list(xmin, xmax, ymin, ymax, zmin, zmax, levelmax, bound_key, ndump, cpu_list)
-    real(kind = 8),  intent(in)                  :: xmin, xmax, ymin, ymax, zmin, zmax, ndump
-    real(kind = 8), dimension(ndump), intent(in) :: bound_key
+  subroutine get_cpu_list(X0, X1, levelmax, bound_key, cpu_list, ncpu, ndim)
+    real(kind = 8), dimension(1:ndim), intent(in)  :: X0, X1
+    real(kind = 8), intent(in)                   :: ncpu
+    real(kind = 8), dimension(0:ncpu), intent(in):: bound_key
+    integer, dimension(ncpu), intent(out)        :: cpu_list
 
-    integer, dimension(ndump), intent(out)       :: cpu_list
-    logical, dimension(ndump)                    :: cpu_read
-
+    real(kind = 8)                               :: xmin, xmax, ymin, ymax, zmin, zmax
+    logical, dimension(ncpu)                     :: cpu_read
     integer                                      :: imin, imax, jmin, jmax, kmin, kmax, lmin, ipart
     integer                                      :: ilevel, bit_length, maxdom
     real(kind = 8), dimension(1:8)               :: bounding_min, bounding_max
-    real(kind = 8)                               :: dkey, order_min, dmax, deltax
+    real(kind = 8)                               :: dkey, dmax, deltax
+    real(kind = 8), dimension(1:1)               :: order_min
     integer, dimension(1:8)                      :: idom, jdom, kdom, cpu_min, cpu_max
+    xmin = X0(1); xmax = X1(1)
+    ymin = X0(2); ymax = X1(2)
+    zmin = X0(3); zmax = X1(3)
 
     dmax = max(xmax-xmin, ymax-ymin, zmax-zmin)
     do ilevel = 1, levelmax
@@ -119,6 +124,7 @@ contains
     endif
 
     dkey = (dble(2**(levelmax+1)/dble(maxdom)))**ndim
+    print*, 'dkey', dkey, levelmax, maxdom, ndim
     ndom = 1
     if (bit_length>0)ndom = 8
     idom(1) = imin; idom(2) = imax
@@ -136,12 +142,14 @@ contains
 
     do i = 1, ndom
        if (bit_length>0) then
-          call hilbert3d(idom(i), jdom(i), kdom(i), order_min, bit_length, 1)
+          call hilbert3D(idom(i), jdom(i), kdom(i), order_min, bit_length, 1)
        else
           order_min = 0.0d0
        endif
-       bounding_min(i) = (order_min)*dkey
-       bounding_max(i) = (order_min+1.0D0)*dkey
+       bounding_min(i) = (order_min(1))*dkey
+       bounding_max(i) = (order_min(1)+1.0D0)*dkey
+       ! print*, 'ORDER', order_min, dkey
+       ! print*, bounding_min
     end do
     cpu_min = 0; cpu_max = 0
     do impi = 1, ncpu
@@ -157,6 +165,11 @@ contains
        end do
     end do
     ncpu_read = 0
+    print*, bounding_min
+    print*, bounding_max
+
+    print*, cpu_min
+    print*, cpu_max
     do i = 1, ndom
        do j = cpu_min(i), cpu_max(i)
           if (.not. cpu_read(j)) then
