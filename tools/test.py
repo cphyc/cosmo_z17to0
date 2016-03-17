@@ -1,11 +1,12 @@
 from __future__ import print_function
 
-import tools
+import __init__ as tools
 import numpy as np
 import pandas as pd
 
 tests = []
-def test(fun):
+def test(fun, *d):
+    print(*d)
     def wrap (*args, **kwargs):
         print('Testing "{}":'.format(fun.__doc__), end=' ')
         r = fun(*args, **kwargs)
@@ -20,6 +21,7 @@ def test(fun):
                 print('\tE:', e)
 
     tests.append(wrap)
+    return wrap
 
 def run_tests(*args, **kwargs):
     while len(tests) > 0:
@@ -39,7 +41,7 @@ def Hilbert3D():
             yield '{} != {}'.format(a, b)
 
 
-@test
+#@test
 def get_cpu_list():
     '''Cpu_list'''
     # Test
@@ -60,9 +62,25 @@ def get_cpu_list():
             yield [a, b]
 
 @test
+def info():
+    '''Info reader'''
+    catched = False
+    try:
+        r = tools.io.read_info('/data52/Horizon-AGN/OUTPUT_qsfqsdf00752.txtsqfqsdfqsfqsdf')
+    except IOError:
+        catched = True
+    finally:
+        if not catched:
+            yield 'not throwing exception for missing file'
+
+    r = tools.io.read_info('/data52/Horizon-AGN/OUTPUT_DIR/output_00752/info_00752.txt')
+    # should not crash if already allocated
+    r = tools.io.read_info('/data52/Horizon-AGN/OUTPUT_DIR/output_00752/info_00752.txt')
+@test
+
 def bricks():
     '''Bricks'''
-    pass
+    tools.io.read_brick('/data40b/Horizon-AGN/TREE_DM_raw/tree_bricks752')
 
 
 run_tests()

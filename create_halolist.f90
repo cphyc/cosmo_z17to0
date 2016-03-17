@@ -16,6 +16,7 @@ program create_halolist
   logical::subhalo=.false.
   integer::npoints
   real(kind=4),allocatable,dimension(:)::rr
+  real(kind=4),allocatable,dimension(:,:) :: tmp
 
   call read_params
   call read_info
@@ -115,6 +116,21 @@ program create_halolist
      write(20,'(2I9,1ES10.3,4f12.8)')ind_DM(i),hlevel(i),mvirDM(i),xDM(i),yDM(i),zDM(i),rvirDM(i)
   enddo
   close(20)
+
+  allocate(tmp(nDM,7))
+  tmp(1:nDM, 1) = float(ind_DM)
+  tmp(1:nDM, 2) = float(hlevel(i))
+  tmp(1:nDM, 3) = mvirDM
+  tmp(1:nDM, 4) = xDM
+  tmp(1:nDM, 5) = yDM
+  tmp(1:nDM, 6) = zDM
+  tmp(1:nDM, 7) = rvirDM
+  nomfich=TRIM(outfich)//'.bin'
+  write(*,*)'Writing file '//TRIM(nomfich)
+  open(unit=20, file=nomfich, form='unformatted')
+  write(20) nDM, 7
+  write(20) tmp
+  deallocate(tmp)
 
 contains
 
