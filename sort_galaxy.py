@@ -16,6 +16,8 @@ except:
     print('Missing tqdm library, install it (fallbacks to dummy function).')
     def tqdm(foo):
         return foo
+
+import tools
 parser = argparse.ArgumentParser(description='FIXME')
 parser.add_argument('--galaxy-list', type=str, required=True)
 parser.add_argument('--halo-list', type=str, required=True)
@@ -25,113 +27,6 @@ parser.add_argument('--ramses-output-end', type=str, required=True)
 parser.add_argument('--DM-tree-bricks-start', '-dtbs', type=str, required=True)
 parser.add_argument('--DM-tree-bricks-end', '-dtbe', type=str, required=True)
 parser.add_argument('--process', '-p', type=int, default=1)
-
-def hilbert3D(x, y, z, bit_length, npoint):
-    x_bit_mask = np.zeros(bit_length, dtype=bool)
-    y_bit_mask = np.zeros(bit_length, dtype=bool)
-    z_bit_mask = np.zeros(bit_length, dtype=bool)
-    i_bit_mask = np.zeros(3*bit_length, dtype=bool)
-    order = np.zeros(npoint)
-    if npoint == 1:
-        x = [x]
-        y = [y]
-        z = [z]
-    state_diagram = np.array([ 1, 2, 3, 2, 4, 5, 3, 5,
-                               0, 1, 3, 2, 7, 6, 4, 5,
-                               2, 6, 0, 7, 8, 8, 0, 7,
-                               0, 7, 1, 6, 3, 4, 2, 5,
-                               0, 9,10, 9, 1, 1,11,11,
-                               0, 3, 7, 4, 1, 2, 6, 5,
-                               6, 0, 6,11, 9, 0, 9, 8,
-                               2, 3, 1, 0, 5, 4, 6, 7,
-                              11,11, 0, 7, 5, 9, 0, 7,
-                               4, 3, 5, 2, 7, 0, 6, 1,
-                               4, 4, 8, 8, 0, 6,10, 6,
-                               6, 5, 1, 2, 7, 4, 0, 3,
-                               5, 7, 5, 3, 1, 1,11,11,
-                               4, 7, 3, 0, 5, 6, 2, 1,
-                               6, 1, 6,10, 9, 4, 9,10,
-                               6, 7, 5, 4, 1, 0, 2, 3,
-                              10, 3, 1, 1,10, 3, 5, 9,
-                               2, 5, 3, 4, 1, 6, 0, 7,
-                               4, 4, 8, 8, 2, 7, 2, 3,
-                               2, 1, 5, 6, 3, 0, 4, 7,
-                               7, 2,11, 2, 7, 5, 8, 5,
-                               4, 5, 7, 6, 3, 2, 0, 1,
-                              10, 3, 2, 6,10, 3, 4, 4,
-                               6, 1, 7, 0, 5, 2, 4, 3]).reshape((12, 2, 8))
-    for ipt in range(npoint):
-        # convert to binary
-        for i in range(bit_length):
-            bit_mask = 2**i
-            x_bit_mask[i] = (x[ipt] & bit_mask) > 0
-            y_bit_mask[i] = (y[ipt] & bit_mask) > 0
-            z_bit_mask[i] = (z[ipt] & bit_mask) > 0
-
-        # Interleave bits
-        for i in range(bit_length):
-            i_bit_mask[3*i+2] = x_bit_mask[i]
-            i_bit_mask[3*i+1] = y_bit_mask[i]
-            i_bit_mask[3*i  ] = z_bit_mask[i]
-
-        cstate = 0
-        for i in range(bit_length-1, -1, -1):
-            b2 = 1 if i_bit_mask[3*i+2] else 0
-            b1 = 1 if i_bit_mask[3*i+1] else 0
-            b0 = 1 if i_bit_mask[3*i  ] else 0
-            sdigit = b2 * 4 + b1 * 2 + b0
-            nstate = state_diagram[cstate, 0, sdigit]
-            hdigit = state_diagram[cstate, 1, sdigit]
-            i_bit_mask[3*i+2] = hdigit & 0b100 > 0
-            i_bit_mask[3*i+1] = hdigit & 0b010 > 0
-            i_bit_mask[3*i  ] = hdigit & 0b001 > 0
-            cstate = nstate
-
-        order[ipt] = 0
-        for i in range(0, 3*bit_length):
-            b0 = 1 if i_bit_mask[i] else 0
-            order[ipt] = order[ipt] + b0*2**i
-
-    return order
-
-# for cpu in range(1, ncpu+1):
-#     filename = 'part_{}.out{:0>5}'.format(nsim, cpu)
-#     path = os.path.join(args.ramses_output_start, filename)
-#     print('{:.2f}% ({}/{})'.format(100.*cpu/ncpu, cpu, ncpu))
-
-#     f = FortranFile(path, 'r')
-#     ncpu2 = f.read_ints()[0]
-#     ndim2 = f.read_ints()[0]
-#     npart = f.read_ints()[0]
-#     f.read_ints()
-#     nstar = f.read_ints()
-#     f.read_ints()
-#     f.read_ints()
-#     f.read_ints()
-
-#     x = f.read_reals(dtype=np.float64)
-#     y = f.read_reals(dtype=np.float64)
-#     z = f.read_reals(dtype=np.float64)
-#     vx = f.read_reals(dtype=np.float64)
-#     vy = f.read_reals(dtype=np.float64)
-#     vz = f.read_reals(dtype=np.float64)
-#     m = f.read_reals(dtype=np.float64)
-#     part_id = f.read_ints()
-#     birth = f.read_reals(dtype=np.float32)
-
-#     particles.append(pd.DataFrame({
-#         "x": x,
-#         "y": y,
-#         "z": z,
-#         "vx": vx,
-#         "vy": vy,
-#         "vz": vz,
-#         "m": m,
-#         "id": part_id,
-#         "birth": birth,
-#     }, columns=['x', 'y', 'z', 'vx', 'vy', 'vz', 'm', 'id', 'birth']))
-
-#     f.close()
 
 def particles_in_halo(tree_brick, start=0, end=None, fun_filter=lambda x: True):
     ''' Open a tree bricks file and associate to each halo the corresponding particles.
@@ -330,67 +225,6 @@ def cpu_containing(particles, bloom_filters):
             if p in bf:
                 yield i
                 break
-
-
-def cpu_for(X0, X1, lvlmax, cpu_infos, ncpu=4096, ndim=3):
-    (x0, y0, z0), (x1, y1, z1) = X0, X1
-    idom = np.zeros((2,2,2), dtype=int)
-    jdom = np.zeros((2,2,2), dtype=int)
-    kdom = np.zeros((2,2,2), dtype=int)
-
-    cpu_min = np.zeros(8, dtype=int)
-    cpu_max = np.zeros(8, dtype=int)
-    bounding_min = np.zeros(8, dtype=int)
-    bounding_max = np.zeros(8, dtype=int)
-    dmax = np.max(X1 - X0)
-
-    # TODO: replace with log2
-    lmin = int(min(np.ceil(np.log2(1/dmax)), lvlmax))
-
-    bit_length = lmin - 1
-    maxdom = 2**bit_length
-    imin = imax = jmin = jmax = kmin = kmax = 0
-    if bit_length > 0:
-        imin = int(x0*maxdom)
-        imax = imin + 1
-        jmin = int(y0*maxdom)
-        jmax = jmin + 1
-        kmin = int(z0*maxdom)
-        kmax = kmin + 1
-
-    dkey = (1.* 2**(lvlmax + 1) / maxdom)**ndim
-    ndom = 8 if bit_length > 0 else 1
-    idom[:,:,0] = imin
-    idom[:,:,1] = imax
-    jdom[:,0,:] = jmin
-    jdom[:,1,:] = jmax
-    kdom[0,:,:] = kmin
-    kdom[1,:,:] = kmax
-
-    idom = idom.reshape(8)
-    jdom = jdom.reshape(8)
-    kdom = kdom.reshape(8)
-
-    for i in range(ndom):
-        if bit_length > 0:
-            order_min = hilbert3D(idom[i], jdom[i], kdom[i], bit_length, 1)
-        else:
-            order_min = 0
-        print(order_min)
-        bounding_min[i] = order_min*dkey
-        bounding_max[i] = (order_min + 1)*dkey
-
-    for i in range(ndom):
-        for impi in range(ncpu):
-            cpu = cpu_infos.iloc[i]
-            if (i > ndom - 5 and impi > ncpu - 5):
-                print (cpu)
-            if cpu.ind_min <= bounding_min[i] < cpu.ind_max:
-                cpu_min[i] = impi
-            if cpu.ind_min < bounding_max[i] <= cpu.ind_max:
-                cpu_max[i] = impi
-
-    return pd.DataFrame({'cpu_min':cpu_min, 'cpu_max': cpu_max})
 
 if __name__ == '__main__':
     global args
