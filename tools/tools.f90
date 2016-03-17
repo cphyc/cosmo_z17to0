@@ -399,9 +399,11 @@ contains
     read(20) age_univ
     read(20) nb_of_halos, nb_of_subhalos
 
+    age_univ = age_univ*unit_t
+
   end subroutine read_brick_header
 
-  subroutine read_brick(nb_of_DM, DM_type, &
+  subroutine read_brick_data(nb_of_DM, DM_type, &
        & mDM, xDM, yDM, zDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LxDM, LyDM, LzDM, idDM)
 
@@ -417,9 +419,13 @@ contains
     real(kind=8)                                   :: mhalo, px, py, pz, Lx, Ly, Lz, rvir, mvir
     real(kind=8)                                   :: xx, yy, zz, drr, tvir, cvel, Lnorm, csound2
 
-    integer :: i
+    integer :: i, status
 
-    call assert_infos()
+    call assert_infos(status)
+    if (status > 0) then
+       close(20)
+       return
+    end if
 
     do i = 1, nb_of_DM
        read(20) nb_of_parts
@@ -470,7 +476,7 @@ contains
 
     end do
 
-  end subroutine read_brick
+  end subroutine read_brick_data
 
   subroutine free ()
     if (allocated(bound_key)) then
