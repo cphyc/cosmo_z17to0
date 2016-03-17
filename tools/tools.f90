@@ -15,48 +15,48 @@ contains
     integer                                        :: sdigit, hdigit
 
     if (bit_length>bit_size(bit_length)) then
-       write(*,*)'Maximum bit length=', bit_size(bit_length)
-       write(*,*)'stop in hilbert3d'
+       write(*, *)'Maximum bit length=', bit_size(bit_length)
+       write(*, *)'stop in hilbert3d'
        stop
     endif
 
-    state_diagram = RESHAPE( (/   1, 2, 3, 2, 4, 5, 3, 5,&
-         &   0, 1, 3, 2, 7, 6, 4, 5,&
-         &   2, 6, 0, 7, 8, 8, 0, 7,&
-         &   0, 7, 1, 6, 3, 4, 2, 5,&
-         &   0, 9,10, 9, 1, 1,11,11,&
-         &   0, 3, 7, 4, 1, 2, 6, 5,&
-         &   6, 0, 6,11, 9, 0, 9, 8,&
-         &   2, 3, 1, 0, 5, 4, 6, 7,&
-         &  11,11, 0, 7, 5, 9, 0, 7,&
-         &   4, 3, 5, 2, 7, 0, 6, 1,&
-         &   4, 4, 8, 8, 0, 6,10, 6,&
-         &   6, 5, 1, 2, 7, 4, 0, 3,&
-         &   5, 7, 5, 3, 1, 1,11,11,&
-         &   4, 7, 3, 0, 5, 6, 2, 1,&
-         &   6, 1, 6,10, 9, 4, 9,10,&
-         &   6, 7, 5, 4, 1, 0, 2, 3,&
-         &  10, 3, 1, 1,10, 3, 5, 9,&
-         &   2, 5, 3, 4, 1, 6, 0, 7,&
-         &   4, 4, 8, 8, 2, 7, 2, 3,&
-         &   2, 1, 5, 6, 3, 0, 4, 7,&
-         &   7, 2,11, 2, 7, 5, 8, 5,&
-         &   4, 5, 7, 6, 3, 2, 0, 1,&
-         &  10, 3, 2, 6,10, 3, 4, 4,&
+    state_diagram = RESHAPE( (/   1, 2, 3, 2, 4, 5, 3, 5, &
+         &   0, 1, 3, 2, 7, 6, 4, 5, &
+         &   2, 6, 0, 7, 8, 8, 0, 7, &
+         &   0, 7, 1, 6, 3, 4, 2, 5, &
+         &   0, 9,10, 9, 1, 1,11,11, &
+         &   0, 3, 7, 4, 1, 2, 6, 5, &
+         &   6, 0, 6,11, 9, 0, 9, 8, &
+         &   2, 3, 1, 0, 5, 4, 6, 7, &
+         &  11,11, 0, 7, 5, 9, 0, 7, &
+         &   4, 3, 5, 2, 7, 0, 6, 1, &
+         &   4, 4, 8, 8, 0, 6,10, 6, &
+         &   6, 5, 1, 2, 7, 4, 0, 3, &
+         &   5, 7, 5, 3, 1, 1,11,11, &
+         &   4, 7, 3, 0, 5, 6, 2, 1, &
+         &   6, 1, 6,10, 9, 4, 9,10, &
+         &   6, 7, 5, 4, 1, 0, 2, 3, &
+         &  10, 3, 1, 1,10, 3, 5, 9, &
+         &   2, 5, 3, 4, 1, 6, 0, 7, &
+         &   4, 4, 8, 8, 2, 7, 2, 3, &
+         &   2, 1, 5, 6, 3, 0, 4, 7, &
+         &   7, 2,11, 2, 7, 5, 8, 5, &
+         &   4, 5, 7, 6, 3, 2, 0, 1, &
+         &  10, 3, 2, 6,10, 3, 4, 4, &
          &   6, 1, 7, 0, 5, 2, 4, 3 /), &
          & (/8 ,2, 12 /) )
 
-    do ip = 1,npoint
+    do ip = 1, npoint
 
        ! convert to binary
-       do i = 0,bit_length-1
-          x_bit_mask(i) = btest(x(ip),i)
-          y_bit_mask(i) = btest(y(ip),i)
-          z_bit_mask(i) = btest(z(ip),i)
+       do i = 0, bit_length-1
+          x_bit_mask(i) = btest(x(ip), i)
+          y_bit_mask(i) = btest(y(ip), i)
+          z_bit_mask(i) = btest(z(ip), i)
        enddo
 
        ! interleave bits
-       do i = 0,bit_length-1
+       do i = 0, bit_length-1
           i_bit_mask(3*i+2) = x_bit_mask(i)
           i_bit_mask(3*i+1) = y_bit_mask(i)
           i_bit_mask(3*i  ) = z_bit_mask(i)
@@ -64,23 +64,23 @@ contains
 
        ! build Hilbert ordering using state diagram
        cstate = 0
-       do i = bit_length-1,0,-1
-          b2 = 0 ; if (i_bit_mask(3*i+2))b2 = 1
-          b1 = 0 ; if (i_bit_mask(3*i+1))b1 = 1
-          b0 = 0 ; if (i_bit_mask(3*i  ))b0 = 1
+       do i = bit_length-1, 0,-1
+          b2 = 0 ; if (i_bit_mask(3*i+2)) b2 = 1
+          b1 = 0 ; if (i_bit_mask(3*i+1)) b1 = 1
+          b0 = 0 ; if (i_bit_mask(3*i  )) b0 = 1
           sdigit = b2*4+b1*2+b0
-          nstate = state_diagram(sdigit,0,cstate)
-          hdigit = state_diagram(sdigit,1,cstate)
-          i_bit_mask(3*i+2) = btest(hdigit,2)
-          i_bit_mask(3*i+1) = btest(hdigit,1)
-          i_bit_mask(3*i  ) = btest(hdigit,0)
+          nstate = state_diagram(sdigit, 0,cstate)
+          hdigit = state_diagram(sdigit, 1,cstate)
+          i_bit_mask(3*i+2) = btest(hdigit, 2)
+          i_bit_mask(3*i+1) = btest(hdigit, 1)
+          i_bit_mask(3*i  ) = btest(hdigit, 0)
           cstate = nstate
        enddo
 
        ! save Hilbert key as double precision real
        order(ip) = 0.
-       do i = 0,3*bit_length-1
-          b0 = 0 ; if (i_bit_mask(i))b0 = 1
+       do i = 0, 3*bit_length-1
+          b0 = 0 ; if (i_bit_mask(i)) b0 = 1
           order(ip) = order(ip)+dble(b0)*dble(2)**i
        end do
 
@@ -94,7 +94,7 @@ contains
     ! fortran 90", mcgraw-hill  isbn 0-07-000248-7, pages 149-150.
     ! modified by alan miller to include an associated integer array which gives
     ! the positions of the elements in the original order.
-    integer,parameter::i8b=8
+    integer, parameter::i8b = 8
 
     integer :: n
     integer(i8b), dimension (1:n), intent(in)  :: list_unsorted
@@ -204,7 +204,7 @@ contains
     dmax = max(xmax-xmin, ymax-ymin, zmax-zmin)
     do ilevel = 1, levelmax
        deltax = 0.5d0**ilevel
-       if (deltax.lt.dmax)exit
+       if (deltax.lt.dmax) exit
     end do
     lmin = ilevel
     bit_length = lmin-1
@@ -221,7 +221,7 @@ contains
 
     dkey = (dble(2**(levelmax+1)/dble(maxdom)))**ndim
     ndom = 1
-    if (bit_length>0)ndom = 8
+    if (bit_length>0) ndom = 8
     idom(1) = imin; idom(2) = imax
     idom(3) = imin; idom(4) = imax
     idom(5) = imin; idom(6) = imax
@@ -279,13 +279,17 @@ module io
   implicit none
   real(kind = 8), dimension(:), allocatable :: bound_key
   integer                                   :: ncpu, ndim, levelmin, levelmax
+  real(kind = 8)                            :: t, aexp, unit_l, unit_t
+
+  logical :: infos_read = .false.
+
+  private :: infos_read
 contains
   subroutine read_info(filename)
     character(len=*), intent(in)                           :: filename
 
     logical                                                :: ok
     integer                                                :: impi, i
-    real(kind = 8)                                         :: t, aexp, unit_l, unit_t
     character(len=80)                                      :: ordering
 
     inquire(file=filename, exist=ok)
@@ -295,38 +299,170 @@ contains
     end if
 
     open(unit=10, file=filename, form='formatted', status='old')
-    read(10,'("ncpu        =",I11)') ncpu
-    read(10,'("ndim        =",I11)') ndim
-    read(10,'("levelmin    =",I11)') levelmin
-    read(10,'("levelmax    =",I11)') levelmax
-    read(10,*)
-    read(10,*)
-    read(10,*)
+    read(10, '("ncpu        =",I11)') ncpu
+    read(10, '("ndim        =",I11)') ndim
+    read(10, '("levelmin    =",I11)') levelmin
+    read(10, '("levelmax    =",I11)') levelmax
+    read(10, *)
+    read(10, *)
+    read(10, *)
 
-    read(10,*)
-    read(10,'("time        =",E23.15)') t
-    read(10,'("aexp        =",E23.15)') aexp
-    read(10,*)
-    read(10,*)
-    read(10,*)
-    read(10,*)
-    read(10,*)
-    read(10,'("unit_l      =",E23.15)') unit_l
-    read(10,*)
-    read(10,'("unit_t      =",E23.15)') unit_t
+    read(10, *)
+    read(10, '("time        =",E23.15)') t
+    read(10, '("aexp        =",E23.15)') aexp
+    read(10, *)
+    read(10, *)
+    read(10, *)
+    read(10, *)
+    read(10, *)
+    read(10, '("unit_l      =",E23.15)') unit_l
+    read(10, *)
+    read(10, '("unit_t      =",E23.15)') unit_t
 
-    read(10,*)
-    read(10,'("ordering type=",A80)') ordering
-    read(10,*)
+    read(10, *)
+    read(10, '("ordering type=",A80)') ordering
+    read(10, *)
 
     if (TRIM(ordering) == 'hilbert') then
        allocate(bound_key(0:ncpu))
-       do impi = 1,ncpu
-          read(10,'(I8,1X,E23.15,1X,E23.15)') i, bound_key(impi-1), bound_key(impi)
+       do impi = 1, ncpu
+          read(10, '(I8,1X,E23.15,1X,E23.15)') i, bound_key(impi-1), bound_key(impi)
        end do
     endif
     close(10)
+    infos_read = .true.
   end subroutine read_info
+
+  subroutine assert_infos()
+    if (.not. infos_read) then
+       print*, 'E: you need first to call read_info(…)'
+       stop
+    end if
+  end subroutine assert_infos
+
+  subroutine read_particle_header (filename, ndim, nparts)
+    character(len=*), intent(in) :: filename
+    integer, intent(out)         :: nparts, ndim
+    open(unit = 20, file=filename, status='old', form='unformatted')
+    read(20) !ncpu
+    read(20) ndim
+    read(20) nparts
+  end subroutine read_particle_header
+
+  subroutine read_particles(ndim, nparts, nstar, x, y, z, vx, vy, vz, m, ids, birth_date)
+    integer, intent(in)                          :: ndim, nparts
+    real(kind=8), dimension(nparts), intent(out) :: x, y, z, vx, vy, vz
+    integer, intent(out)                         :: nstar
+    integer,      dimension(nparts), intent(out) :: ids
+    real(kind=8), dimension(nparts), intent(out) :: m, birth_date
+
+    read(20) ! ?
+    read(20) nstar
+    read(20) ! ?
+    read(20) ! ?
+    read(20) ! ?
+
+    read(20) x
+    read(20) y
+    read(20) z
+    read(20) vx
+    read(20) vy
+    read(20) vz
+
+    read(20) m
+
+    read(20) ids
+
+    read(20) birth_date
+    close(20)
+  end subroutine read_particles
+
+  subroutine read_brick_header(filename, nbodies, aexp, age_univ, nb_of_halos, &
+       nb_of_subhalos)
+    character(len=*), intent(in) :: filename
+
+    integer, intent(out)         :: nbodies, nb_of_subhalos, nb_of_halos
+    real(kind=8), intent(out)    :: aexp, age_univ
+
+    read(20) nbodies
+    read(20)
+    read(20) aexp
+    read(20)
+    read(20) age_univ
+    read(20) nb_of_halos, nb_of_subhalos
+
+  end subroutine read_brick_header
+
+  subroutine read_brick(nb_of_DM, DM_type, &
+       & mDM, xDM, yDM, zDM, rvirDM, mvirDM, TvirDM,&
+       & hlevel, LxDM, LyDM, LzDM, idDM)
+
+    integer, intent(in)                            :: nb_of_DM
+    logical, intent(in)                            :: DM_type
+    real(kind=8), intent(out), dimension(nb_of_DM) :: mDM, xDM, yDM, zDM, rvirDM
+    real(kind=8), intent(out), dimension(nb_of_DM) :: mvirDM, TvirDM, hlevel
+    real(kind=8), intent(out), dimension(nb_of_DM) :: LxDM, LyDM, LzDM
+    integer, intent(out), dimension(nb_of_DM)      :: idDM
+
+    integer                                        :: nb_of_parts, idh, mylevel, hosthalo
+    integer                                        :: hostsub, nbsub, nextsub
+    real(kind=8)                                   :: mhalo, px, py, pz, Lx, Ly, Lz, rvir, mvir
+    real(kind=8)                                   :: xx, yy, zz, drr, tvir, cvel, Lnorm, csound2
+
+    integer :: i
+
+    call assert_infos()
+
+    do i = 1, nb_of_DM
+       read(20) nb_of_parts
+       read(20) ! read members
+       ! Read properties of each halo
+       read(20) idh
+       read(20)
+       read(20) mylevel, hosthalo, hostsub, nbsub, nextsub
+       read(20) mhalo
+       read(20) px, py, pz
+       read(20)
+       read(20) Lx, Ly, Lz
+       read(20)
+       read(20)
+       read(20)
+       if (.not. DM_type) read(20) !sigma stuff
+       read(20) rvir, mvir, tvir, cvel
+       read(20)
+       if (.not. DM_type) then
+          read(20) !npoints
+          read(20) !rdum
+          read(20) !density
+       endif
+       close(20)
+       xx = px*1d6*3.08d18/unit_l+0.5d0
+       yy = py*1d6*3.08d18/unit_l+0.5d0
+       zz = pz*1d6*3.08d18/unit_l+0.5d0
+       drr = rvir*1d6*3.08d18/unit_l
+
+       hlevel(i) = mylevel
+       idDM(i) = idh
+       mDM(i) = mhalo*1d11
+       xDM(i) = px
+       yDM(i) = py
+       zDM(i) = pz
+       Lnorm = sqrt(Lx*Lx + Ly*Ly + Lz*Lz)
+       LxDM(i) = Lx/Lnorm
+       LyDM(i) = Ly/Lnorm
+       LzDM(i) = Lz/Lnorm
+       rvirDM(i) = rvir
+       if(DM_type) then
+          mvirDM(i) = mvir*1d11
+       else
+          mvirDM(i) = mhalo*1d11
+       endif
+       csound2 = 6.67d-8*mvirDM(i)*2d33/(rvirDM(i)*3.08d24)
+       TvirDM(i) = csound2*1.66d-24/1.666666667/1.38d-16
+
+    end do
+
+  end subroutine read_brick
 
   subroutine free ()
     if (allocated(bound_key)) then
