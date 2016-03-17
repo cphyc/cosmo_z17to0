@@ -1,4 +1,5 @@
 module tools
+  implicit none
 contains
   subroutine hilbert3D(x, y, z, order, bit_length, npoint)
     implicit none
@@ -88,8 +89,8 @@ contains
   end subroutine hilbert3D
 
   subroutine get_cpu_list(X0, X1, levelmax, bound_key, cpu_list, ncpu, ndim)
-    real(kind = 8), dimension(1:ndim), intent(in)  :: X0, X1
-    real(kind = 8), intent(in)                   :: ncpu
+    real(kind = 8), intent(in)                   :: ncpu, ndim, levelmax
+    real(kind = 8), dimension(1:ndim), intent(in):: X0, X1
     real(kind = 8), dimension(0:ncpu), intent(in):: bound_key
     integer, dimension(ncpu), intent(out)        :: cpu_list
 
@@ -101,6 +102,8 @@ contains
     real(kind = 8)                               :: dkey, dmax, deltax
     real(kind = 8), dimension(1:1)               :: order_min
     integer, dimension(1:8)                      :: idom, jdom, kdom, cpu_min, cpu_max
+
+    integer :: ndom, i, impi, ncpu_read, j
     xmin = X0(1); xmax = X1(1)
     ymin = X0(2); ymax = X1(2)
     zmin = X0(3); zmax = X1(3)
