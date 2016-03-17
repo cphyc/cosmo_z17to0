@@ -9,9 +9,9 @@ subroutine hilbert3D(x, y, z, bit_length, npoint, order)
   logical, dimension(0:1*bit_length-1)           :: x_bit_mask, y_bit_mask, z_bit_mask
   integer, dimension(0:7, 0:1, 0:11)             :: state_diagram
   integer                                        :: i, ip, cstate, nstate, b0, b1, b2
-  integer                                        :: digit, hdigit
+  integer                                        :: sdigit, hdigit
 
-  if(bit_length>bit_size(bit_length))then
+  if (bit_length>bit_size(bit_length)) then
      write(*,*)'Maximum bit length=',bit_size(bit_length)
      write(*,*)'stop in hilbert3d'
      stop
@@ -62,9 +62,9 @@ subroutine hilbert3D(x, y, z, bit_length, npoint, order)
      ! build Hilbert ordering using state diagram
      cstate = 0
      do i = bit_length-1,0,-1
-        b2 = 0 ; if(i_bit_mask(3*i+2))b2 = 1
-        b1 = 0 ; if(i_bit_mask(3*i+1))b1 = 1
-        b0 = 0 ; if(i_bit_mask(3*i  ))b0 = 1
+        b2 = 0 ; if (i_bit_mask(3*i+2))b2 = 1
+        b1 = 0 ; if (i_bit_mask(3*i+1))b1 = 1
+        b0 = 0 ; if (i_bit_mask(3*i  ))b0 = 1
         sdigit = b2*4+b1*2+b0
         nstate = state_diagram(sdigit,0,cstate)
         hdigit = state_diagram(sdigit,1,cstate)
@@ -77,7 +77,7 @@ subroutine hilbert3D(x, y, z, bit_length, npoint, order)
      ! save Hilbert key as double precision real
      order(ip) = 0.
      do i = 0,3*bit_length-1
-        b0 = 0 ; if(i_bit_mask(i))b0 = 1
+        b0 = 0 ; if (i_bit_mask(i))b0 = 1
         order(ip) = order(ip)+dble(b0)*dble(2)**i
      end do
 
@@ -101,13 +101,13 @@ subroutine get_cpu_list(xmin, xmax, ymin, ymax, zmin, zmax, levelmax, bound_key,
   dmax = max(xmax-xmin,ymax-ymin,zmax-zmin)
   do ilevel = 1,levelmax
      deltax = 0.5d0**ilevel
-     if(deltax.lt.dmax)exit
+     if (deltax.lt.dmax)exit
   end do
   lmin = ilevel
   bit_length = lmin-1
   maxdom = 2**bit_length
   imin = 0; imax = 0; jmin = 0; jmax = 0; kmin = 0; kmax = 0
-  if(bit_length>0)then
+  if (bit_length>0) then
      imin = int(xmin*dble(maxdom))
      imax = imin+1
      jmin = int(ymin*dble(maxdom))
@@ -118,7 +118,7 @@ subroutine get_cpu_list(xmin, xmax, ymin, ymax, zmin, zmax, levelmax, bound_key,
 
   dkey = (dble(2**(levelmax+1)/dble(maxdom)))**ndim
   ndom = 1
-  if(bit_length>0)ndom = 8
+  if (bit_length>0)ndom = 8
   idom(1) = imin; idom(2) = imax
   idom(3) = imin; idom(4) = imax
   idom(5) = imin; idom(6) = imax
@@ -133,7 +133,7 @@ subroutine get_cpu_list(xmin, xmax, ymin, ymax, zmin, zmax, levelmax, bound_key,
   kdom(7) = kmax; kdom(8) = kmax
 
   do i = 1,ndom
-     if(bit_length>0)then
+     if (bit_length>0) then
         call hilbert3d(idom(i),jdom(i),kdom(i),order_min,bit_length,1)
      else
         order_min = 0.0d0
@@ -144,12 +144,12 @@ subroutine get_cpu_list(xmin, xmax, ymin, ymax, zmin, zmax, levelmax, bound_key,
   cpu_min = 0; cpu_max = 0
   do impi = 1,ncpu
      do i = 1,ndom
-        if (   bound_key(impi-1).le.bounding_min(i).and.&
-             & bound_key(impi  ).gt.bounding_min(i))then
+        if (   bound_key(impi-1) <= bounding_min(i).and.&
+             & bound_key(impi  ) > bounding_min(i)) then
            cpu_min(i) = impi
         endif
-        if (   bound_key(impi-1).lt.bounding_max(i).and.&
-             & bound_key(impi  ).ge.bounding_max(i))then
+        if (   bound_key(impi-1) < bounding_max(i).and.&
+             & bound_key(impi  ) >= bounding_max(i)) then
            cpu_max(i) = impi
         endif
      end do
@@ -157,7 +157,7 @@ subroutine get_cpu_list(xmin, xmax, ymin, ymax, zmin, zmax, levelmax, bound_key,
   ncpu_read = 0
   do i = 1,ndom
      do j = cpu_min(i),cpu_max(i)
-        if(.not. cpu_read(j))then
+        if (.not. cpu_read(j)) then
            ncpu_read = ncpu_read+1
            cpu_list(ncpu_read) = j
            cpu_read(j) = .true.
