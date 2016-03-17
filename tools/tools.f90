@@ -88,54 +88,98 @@ contains
 
   end subroutine hilbert3D
 
-  recursive subroutine quick_sort_1(left_end, right_end)
+  subroutine quick_sort(list_unsorted, order, list, n)
+    ! quick sort routine from:
+    ! brainerd, w.s., goldberg, c.h. & adams, j.c. (1990) "programmer's guide to
+    ! fortran 90", mcgraw-hill  isbn 0-07-000248-7, pages 149-150.
+    ! modified by alan miller to include an associated integer array which gives
+    ! the positions of the elements in the original order.
+    integer,parameter::i8b=8
 
-    integer, intent(in) :: left_end, right_end
+    integer :: n
+    integer(i8b), dimension (1:n), intent(in)  :: list_unsorted
+    integer, dimension (1:n), intent(out)      :: order, list
 
-    !     local variables
-    integer             :: i, j, itemp
-    integer(i8b)        :: reference, temp
-    integer, parameter  :: max_simple_sort_size = 6
+    ! local variable
+    integer :: i
 
-    if (right_end < left_end + max_simple_sort_size) then
-       ! use interchange sort for small lists
-       call interchange_sort(left_end, right_end)
+    list = list_unsorted
 
-    else
-       ! use partition ("quick") sort
-       reference = list((left_end + right_end)/2)
-       i = left_end - 1; j = right_end + 1
+    do i = 1, n
+       order(i) = i
+    end do
 
-       do
-          ! scan list from left end until element >= reference is found
-          do
-             i = i + 1
-             if (list(i) >= reference) exit
-          end do
-          ! scan list from right end until element <= reference is found
-          do
-             j = j - 1
-             if (list(j) <= reference) exit
-          end do
+    call quick_sort_1(1, n)
+
+  contains
+    recursive subroutine quick_sort_1(left_end, right_end)
+
+      integer, intent(in) :: left_end, right_end
+
+      !     local variables
+      integer             :: i, j, itemp
+      integer(i8b)        :: reference, temp
+      integer, parameter  :: max_simple_sort_size = 6
+
+      if (right_end < left_end + max_simple_sort_size) then
+         ! use interchange sort for small lists
+         call interchange_sort(left_end, right_end)
+
+      else
+         ! use partition ("quick") sort
+         reference = list((left_end + right_end)/2)
+         i = left_end - 1; j = right_end + 1
+
+         do
+            ! scan list from left end until element >= reference is found
+            do
+               i = i + 1
+               if (list(i) >= reference) exit
+            end do
+            ! scan list from right end until element <= reference is found
+            do
+               j = j - 1
+               if (list(j) <= reference) exit
+            end do
 
 
-          if (i < j) then
-             ! swap two out-of-order elements
-             temp = list(i); list(i) = list(j); list(j) = temp
-             itemp = order(i); order(i) = order(j); order(j) = itemp
-          else if (i == j) then
-             i = i + 1
-             exit
-          else
-             exit
-          end if
-       end do
+            if (i < j) then
+               ! swap two out-of-order elements
+               temp = list(i); list(i) = list(j); list(j) = temp
+               itemp = order(i); order(i) = order(j); order(j) = itemp
+            else if (i == j) then
+               i = i + 1
+               exit
+            else
+               exit
+            end if
+         end do
 
-       if (left_end < j) call quick_sort_1(left_end, j)
-       if (i < right_end) call quick_sort_1(i, right_end)
-    end if
+         if (left_end < j) call quick_sort_1(left_end, j)
+         if (i < right_end) call quick_sort_1(i, right_end)
+      end if
 
-  end subroutine quick_sort_1
+    end subroutine quick_sort_1
+
+    subroutine interchange_sort(left_end, right_end)
+
+      integer, intent(in) :: left_end, right_end
+
+      !     local variables
+      integer             :: i, j, itemp
+      integer(i8b)        :: temp
+
+      do i = left_end, right_end - 1
+         do j = i+1, right_end
+            if (list(i) > list(j)) then
+               temp = list(i); list(i) = list(j); list(j) = temp
+               itemp = order(i); order(i) = order(j); order(j) = itemp
+            end if
+         end do
+      end do
+
+    end subroutine interchange_sort
+  end subroutine quick_sort
 
   subroutine get_cpu_list(X0, X1, levelmax, bound_key, cpu_list, ncpu, ndim)
     real(kind = 8), intent(in)                   :: ncpu, ndim, levelmax
@@ -228,8 +272,8 @@ contains
 
     ! deallocate(cpu_read)
   end subroutine get_cpu_list
-  
-end module cpus
+
+end module misc
 
 module io
   implicit none
