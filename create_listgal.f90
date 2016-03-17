@@ -147,8 +147,8 @@ program create_listgal
   ! Output file
   nomfich=TRIM(outfich)
   write(*,*)'Writing file '//TRIM(nomfich)
-  open(unit=20,file=nomfich)
-  write(20,*) ngal, 7
+  open(unit=20, file=nomfich)
+  write(20,'(2i9)') ngal, 7
   do i=1,ngal
      write(20,'(2I9,1ES10.3,4f12.8)')idgal(i),hlevel(i),mgal(i),xgal(i),ygal(i),zgal(i),rgal(i)
   enddo
