@@ -8,14 +8,15 @@ from scipy.io import FortranFile
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import glob
-
+from pybloomfilter import BloomFilter
+from multiprocessing import Pool
 try:
     from tqdm import tqdm
 except:
     print('Missing tqdm library, install it (fallbacks to dummy function).')
     def tqdm(foo):
         return foo
-
+from bintrees import FastAVLTree as Tree
 parser = argparse.ArgumentParser(description='FIXME')
 parser.add_argument('--galaxy-list', type=str, required=True)
 parser.add_argument('--halo-list', type=str, required=True)
@@ -24,6 +25,7 @@ parser.add_argument('--ramses-output-start', type=str, required=True)
 parser.add_argument('--ramses-output-end', type=str, required=True)
 parser.add_argument('--DM-tree-bricks-start', '-dtbs', type=str, required=True)
 parser.add_argument('--DM-tree-bricks-end', '-dtbe', type=str, required=True)
+parser.add_argument('--process', '-p', type=int, default=1)
 
 def hilbert3D(x, y, z, bit_length, npoint):
     x_bit_mask = np.zeros(bit_length, dtype=bool)
@@ -31,6 +33,10 @@ def hilbert3D(x, y, z, bit_length, npoint):
     z_bit_mask = np.zeros(bit_length, dtype=bool)
     i_bit_mask = np.zeros(3*bit_length, dtype=bool)
     order = np.zeros(npoint)
+    if npoint == 1:
+        x = [x]
+        y = [y]
+        z = [z]
     state_diagram = np.array([ 1, 2, 3, 2, 4, 5, 3, 5,
                                0, 1, 3, 2, 7, 6, 4, 5,
                                2, 6, 0, 7, 8, 8, 0, 7,
@@ -80,7 +86,6 @@ def hilbert3D(x, y, z, bit_length, npoint):
             i_bit_mask[3*i+2] = hdigit & 0b100 > 0
             i_bit_mask[3*i+1] = hdigit & 0b010 > 0
             i_bit_mask[3*i  ] = hdigit & 0b001 > 0
-            print(nstate, sdigit, hdigit, cstate)
             cstate = nstate
 
         order[ipt] = 0
@@ -198,9 +203,9 @@ def read_halo_list(listfile):
     nhalos, columns = haloFile.read_ints()
     _tmp = (haloFile.read_reals(dtype=np.float32)).reshape((columns, nhalos)).transpose()
     halos = pd.DataFrame(_tmp,
-                         columns=['id', 'level', 'mass', 'vx', 'vy', 'vz', 'sigma'])
-    halos.id.astype(int)
-    halos.level.astype(int)
+                         columns=['id', 'level', 'mass', 'x', 'y', 'z', 'rvir'])
+    halos[['id', 'level']] = halos[['id', 'level']].astype(int)
+
     return halos
 
 def read_infos(path):
@@ -230,7 +235,9 @@ def read_infos(path):
 
         infos = pd.read_csv(f, names=headers, delim_whitespace=True)
 
+    infos.DOMAIN = infos.DOMAIN.astype(np.int32)
     return infos
+
 def read_association(listfile):
     assocFile = FortranFile(listfile, 'r')
     nassoc, columns = assocFile.read_ints()
@@ -238,24 +245,156 @@ def read_association(listfile):
     assoc = pd.DataFrame(_tmp,
                          columns=['halo_id', 'level', 'halo_mass', 'gal_id', 'gal_mass'])
 
-    assoc.halo_id.astype(int)
-    assoc.level.astype(int)
-    assoc.gal_id.astype(int)
+    assoc[['halo_id', 'level', 'gal_id']] =  assoc[['halo_id', 'level', 'gal_id']].astype(np.int32)
     return assoc
 
-def read_output(path):
+def read_output(path, header_only=True):
     f = FortranFile(path, 'r')
     ncpu = f.read_ints()
     dim = f.read_ints()
     nparts = f.read_ints()
-    
-def find_particles(basepath, particles_to_read):
-    allfiles = glob.glob(os.path.join(basepath + 'part*.out*'))
+    if header_only:
+        f.close()
+        return ncpu, dim, nparts
+    f.read_ints()
+    f.read_ints()
+    f.read_ints()
+    f.read_ints()
+    f.read_ints()
+
+    x = f.read_reals(dtype=np.float64)
+    y = f.read_reals(dtype=np.float64)
+    z = f.read_reals(dtype=np.float64)
+
+    vx = f.read_reals(dtype=np.float64)
+    vy = f.read_reals(dtype=np.float64)
+    vz = f.read_reals(dtype=np.float64)
+
+    m = f.read_reals(dtype=np.float64)
+
+    part_ids = f.read_ints()
+
+    birth = f.read_reals(dtype=np.float32)
+
+    f.close()
+    return  ncpu, dim, nparts, x, y, z, part_ids
+
+def _process_one(data_file):
+    ''' Process one output file to generate a bloom filter'''
+    path, dump_name = os.path.split(data_file)
+    _, parent_dir = os.path.split(path)
+
+    # ensure the containing folder exists
+    bf_dir_path = os.path.join('bloom_filters', parent_dir)
+    if not os.path.isdir(bf_dir_path):
+        os.mkdir(bf_dir_path)
+    bf_file_path = os.path.join(bf_dir_path, dump_name)
+
+    if not os.path.isfile(bf_file_path):
+        ncpu, _, nparts, _, _, _, ids = read_output(data_file, header_only=False)
+        bf = BloomFilter(nparts, 1./ncpu, bf_file_path)
+        bf.update(ids)
+
+    return bf_file_path
+
+def _process_all(data_file_list, use_tqdm=True):
+    '''Simple wrapper for a looper'''
+    if not use_tqdm:
+        iterator = data_file_list
+    else:
+        iterator = tqdm(data_file_list)
+
+    return [_process_one(data_file) for data_file in iterator]
+
+def build_bloom_filter(basepath):
+    ''' Build a bloom filter for each outputs' dump, so that it is very fast to know
+    whether a particle is part of a dump.'''
+
+    allfiles = glob.glob(os.path.join(basepath,  'part*.out*'))
     allfiles.sort()
 
-    for f in tqdm(allfiles):
-        read_output(f)
+    if args.process > 1:
+        p = Pool(args.process)
+        # split the list of files into 10-files chunks
+        chunk_l = 100
+        splitted = [allfiles[i*chunk_l:(i+1)*chunk_l]
+                    for i in range(int(len(allfiles) / (chunk_l*1.))+1)]
+        return reduce(lambda prev, curr: prev + curr, p.map(_process_all, splitted))
+    else:
+        return _process_all(allfiles, use_tqdm=True)
+
+def cpu_containing(particles, bloom_filters):
+    ''' Iterate over all bloom filter and yield the one containing the particle'''
+    for i in tqdm(range(len(bloom_filters))):
+        bf = BloomFilter.open(bloom_filters[i])
+        for p in particles:
+            if p in bf:
+                yield i
+                break
+
+
+def cpu_for(X0, X1, lvlmax, cpu_infos, ncpu=4096, ndim=3):
+    (x0, y0, z0), (x1, y1, z1) = X0, X1
+    idom = np.zeros((2,2,2), dtype=int)
+    jdom = np.zeros((2,2,2), dtype=int)
+    kdom = np.zeros((2,2,2), dtype=int)
+
+    cpu_min = np.zeros(8, dtype=int)
+    cpu_max = np.zeros(8, dtype=int)
+    bounding_min = np.zeros(8, dtype=int)
+    bounding_max = np.zeros(8, dtype=int)
+    dmax = np.max(X1 - X0)
+
+    # TODO: replace with log2
+    lmin = int(min(np.ceil(np.log2(1/dmax)), lvlmax))
+
+    bit_length = lmin - 1
+    maxdom = 2**bit_length
+    imin = imax = jmin = jmax = kmin = kmax = 0
+    if bit_length > 0:
+        imin = int(x0*maxdom)
+        imax = imin + 1
+        jmin = int(y0*maxdom)
+        jmax = jmin + 1
+        kmin = int(z0*maxdom)
+        kmax = kmin + 1
+
+    dkey = (1.* 2**(lvlmax + 1) / maxdom)**ndim
+    ndom = 8 if bit_length > 0 else 1
+    idom[:,:,0] = imin
+    idom[:,:,1] = imax
+    jdom[:,0,:] = jmin
+    jdom[:,1,:] = jmax
+    kdom[0,:,:] = kmin
+    kdom[1,:,:] = kmax
+
+    idom = idom.reshape(8)
+    jdom = jdom.reshape(8)
+    kdom = kdom.reshape(8)
+
+    for i in range(ndom):
+        if bit_length > 0:
+            order_min = hilbert3D(idom[i], jdom[i], kdom[i], bit_length, 1)
+        else:
+            order_min = 0
+        print(order_min)
+        bounding_min[i] = order_min*dkey
+        bounding_max[i] = (order_min + 1)*dkey
+
+    for i in range(ndom):
+        for impi in range(ncpu):
+            cpu = cpu_infos.iloc[i]
+            if (i > ndom - 5 and impi > ncpu - 5):
+                print (cpu)
+            if cpu.ind_min <= bounding_min[i] < cpu.ind_max:
+                cpu_min[i] = impi
+            if cpu.ind_min < bounding_max[i] <= cpu.ind_max:
+                cpu_max[i] = impi
+
+    return pd.DataFrame({'cpu_min':cpu_min, 'cpu_max': cpu_max})
+
 if __name__ == '__main__':
+    global args
     args = parser.parse_args()
     print('Reading lists…')
     ipos = args.ramses_output_start.index('output_')
@@ -268,14 +407,25 @@ if __name__ == '__main__':
     halo_list = read_halo_list(args.halo_list)
     associations = read_association(args.association_list)
 
-    print('Reading tree…')
+    # print('Reading tree…')
     # halos_particles = particles_in_halo(args.DM_tree_bricks_start, start=181102)
 
-    print('Finding CPUs containing the particles…')
-    # read_output(args.ramses_output_end)
+    print('Loading particles index…')
+    bf_end = build_bloom_filter(args.ramses_output_end)
+    bf_start = build_bloom_filter(args.ramses_output_start)
 
-    x = [ 7, 3, 9, 5, 5, 0, 8, 7, 5, 8 ]
-    y = [ 0, 1, 5, 6, 5, 7, 8, 3, 2, 9 ]
-    z = [ 2, 4, 2, 7, 4, 1, 0, 5, 7, 8 ]
+    # print('Finding cpus containing halos…')
+    # for _id, line in associations[associations.gal_id > 0].iterrows():
+    #     if _id > 10:
+    #         break
+    #     parts = (particles_in_halo(args.DM_tree_bricks_start, start=line.halo_id))[line.halo_id]
+    #     cpus = list(cpu_containing(parts, bf_start))
+    #     print('{} cpus containing {} particules of halo {}'.format(len(cpus),
+    #                                                                len(parts),
+    #                                                                line.halo_id))
 
-    print(hilbert3D(x, y, z, 1, 10))
+
+    # Try to group CPUs
+
+
+'''%run sort_galaxy.py --galaxy-list lists/list_kingal_00782.dat --halo-list lists/list_halo.dat.bin --association-list lists/associated_halogal_782.dat.bin --ramses-output-start /data52/Horizon-AGN/OUTPUT_DIR/output_00782/ -dtbs /data40b/Horizon-AGN/TREE_DM_raw/tree_bricks752 -dtbe /data40b/Horizon-AGN/TREE_DM_raw/tree_bricks032 --ramses-output-end /data52/Horizon-AGN/OUTPUT_DIR/output_00002/'''
