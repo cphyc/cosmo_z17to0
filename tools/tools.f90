@@ -285,7 +285,7 @@ module io
 
   private :: infos_read
 contains
-  subroutine read_info(filename)
+  subroutine read_info_headers(filename)
     character(len=*), intent(in)                           :: filename
 
     logical                                                :: ok
@@ -324,14 +324,17 @@ contains
     read(10, *)
 
     if (TRIM(ordering) == 'hilbert') then
-       allocate(bound_key(0:ncpu))
+       if (.not. allocated(bound_key)) then
+          allocate(bound_key(0:ncpu))
+       end if
+       
        do impi = 1, ncpu
           read(10, '(I8,1X,E23.15,1X,E23.15)') i, bound_key(impi-1), bound_key(impi)
        end do
     endif
     close(10)
     infos_read = .true.
-  end subroutine read_info
+  end subroutine read_info_headers
 
   subroutine assert_infos()
     if (.not. infos_read) then
