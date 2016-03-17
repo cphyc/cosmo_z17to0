@@ -336,10 +336,12 @@ contains
     infos_read = .true.
   end subroutine read_info_headers
 
-  subroutine assert_infos()
+  subroutine assert_infos(status)
+    integer, intent(out) :: status
+    status = 0
     if (.not. infos_read) then
        print*, 'E: you need first to call read_info(…)'
-       stop
+       status = 1
     end if
   end subroutine assert_infos
 
