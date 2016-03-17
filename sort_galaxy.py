@@ -16,7 +16,6 @@ except:
     print('Missing tqdm library, install it (fallbacks to dummy function).')
     def tqdm(foo):
         return foo
-from bintrees import FastAVLTree as Tree
 parser = argparse.ArgumentParser(description='FIXME')
 parser.add_argument('--galaxy-list', type=str, required=True)
 parser.add_argument('--halo-list', type=str, required=True)
