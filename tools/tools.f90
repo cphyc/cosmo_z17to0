@@ -354,7 +354,7 @@ contains
     read(20) nparts
   end subroutine read_particle_header
 
-  subroutine read_particles(ndim, nparts, nstar, x, y, z, vx, vy, vz, m, ids, birth_date)
+  subroutine read_particle_data (ndim, nparts, nstar, x, y, z, vx, vy, vz, m, ids, birth_date)
     integer, intent(in)                          :: ndim, nparts
     real(kind=8), dimension(nparts), intent(out) :: x, y, z, vx, vy, vz
     integer, intent(out)                         :: nstar
@@ -380,14 +380,17 @@ contains
 
     read(20) birth_date
     close(20)
-  end subroutine read_particles
+  end subroutine read_particle_data
 
   subroutine read_brick_header(filename, nbodies, aexp, age_univ, nb_of_halos, &
        nb_of_subhalos)
     character(len=*), intent(in) :: filename
 
     integer, intent(out)         :: nbodies, nb_of_subhalos, nb_of_halos
-    real(kind=8), intent(out)    :: aexp, age_univ
+    real(kind=4), intent(out)    :: aexp
+    real(kind=4), intent(out)    :: age_univ
+
+    open(20, file=filename, form='unformatted')
 
     read(20) nbodies
     read(20)
