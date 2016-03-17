@@ -1,0 +1,8 @@
+*.mod
+*.c
+*.dat
+*.pyc
+*.so
+*~
+lists/
+bloom_filters/
