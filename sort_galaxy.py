@@ -137,6 +137,19 @@ def read_infos(path):
         infos = pd.read_csv(f, names=headers, delim_whitespace=True)
 
     infos.DOMAIN = infos.DOMAIN.astype(np.int32)
+
+    metadata = {
+        "ncpu": ncpu,
+        "ndim": ndim,
+        "levelmin": levelmin,
+        "levelmax": levelmax,
+        "time": time,
+        "aexp": aexp,
+        "unit_l": unit_l,
+        "unit_d": unit_d,
+        "unit_t": unit_t
+    }
+    infos.metadata = metadata
     return infos
 
 def read_association(listfile):
