@@ -17,15 +17,22 @@ except:
     def tqdm(foo):
         return foo
 
+from mpl_toolkits.mplot3d import Axes3D
 import tools
+
 parser = argparse.ArgumentParser(description='FIXME')
-parser.add_argument('--galaxy-list', type=str, required=True)
-parser.add_argument('--halo-list', type=str, required=True)
-parser.add_argument('--association-list', type=str, required=True)
-parser.add_argument('--ramses-output-start', type=str, required=True)
-parser.add_argument('--ramses-output-end', type=str, required=True)
-parser.add_argument('--DM-tree-bricks-start', '-dtbs', type=str, required=True)
-parser.add_argument('--DM-tree-bricks-end', '-dtbe', type=str, required=True)
+parser.add_argument('--galaxy-list', type=str,
+                    default='lists/list_kingal_00782.dat')
+parser.add_argument('--halo-list', type=str,
+                    default='lists/list_halo.dat.bin')
+parser.add_argument('--association-list', type=str,
+                    default='lists/associated_halogal_782.dat.bin')
+parser.add_argument('--ramses-output-start', type=str,
+                    default='/data52/Horizon-AGN/OUTPUT_DIR/output_00032/')
+parser.add_argument('--ramses-output-end', type=str,
+                    default='/data52/Horizon-AGN/OUTPUT_DIR/output_00782/')
+parser.add_argument('--DM-tree-bricks', '-dtb', type=str,
+                    default='/data40b/Horizon-AGN/TREE_DM_raw/tree_bricks752')
 parser.add_argument('--process', '-p', type=int, default=1)
 
 def particles_in_halo(tree_brick, start=0, end=None, fun_filter=lambda x: True):
