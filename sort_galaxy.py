@@ -171,7 +171,7 @@ def read_output(path, header_only=True):
     birth = f.read_reals(dtype=np.float32)
 
     f.close()
-    return  ncpu, dim, nparts, x, y, z, part_ids
+    return ncpu, dim, nparts, x, y, z, part_ids
 
 def _process_one(data_file):
     ''' Process one output file to generate a bloom filter'''
@@ -229,15 +229,88 @@ def cpu_containing(particles, bloom_filters):
 
         yield cpu+1, cpu_contains
 
+def v0(galaxies, halo_list, associations, information_start, information_end, bf_start, bf_end):
+    # gal_id = 14667 # Spiral galaxy with associated halo
+    _tmp = associations.gal_id[associations.gal_id > 0]
+    n_galaxies = _tmp.size
+    _galaxies_treated = 0
+    for _, gal_id in _tmp.iteritems():
+        _galaxies_treated += 1
+        print(('Get information of all particles of halo associated to galaxy {}'.format(gal_id) +
+               ' ({}/{} - {:.2f}%)'.format(_galaxies_treated, n_galaxies,
+                                          100.*_galaxies_treated/n_galaxies)))
+        gal_halo = associations[associations.gal_id == gal_id]
+        halo_id = float(gal_halo.halo_id)
+        particles = pd.DataFrame({
+            'id': particles_in_halo(args.DM_tree_bricks_start, start=halo_id)[halo_id]
+        })
+
+        particles_as_arr = particles.as_matrix().flatten()
+        cpus = list(cpu_containing(particles_as_arr, bf_start))
+        data = pd.DataFrame(columns=['x', 'y', 'z', 'ids'])
+        cpu_visited = {}
+
+        # create a set of found particles
+        particles_found = set()
+        particles_as_set = set(particles.id)
+
+        # routine to filter and fill particles_found
+        def filter_out(x, y, z, ids):
+            # list of particles we're looking for
+            particles_list = particles_as_set - particles_found
+
+            for i in range(len(ids)):
+                if ids[i] in particles_list:
+                    particles_found.add(ids[i])
+                    yield x[i], y[i], z[i], ids[i]
+
+        # Sort CPUs by number of particles in them (first has most particles)
+        def sortFun(x, y):
+            lx, ly = len(x[1]), len(y[1])
+            if (lx < ly):
+                return 1
+            elif (lx > ly):
+                return -1
+            else:
+                return 0
+        cpus.sort(sortFun)
+        print('Read {} cpus containing the {} particles'.format(len(cpus), len(particles)))
+        for cpu, part_in_cpu_raw in cpus:
+            # remove already visited particles from part_in_cpu
+            # part_in_cpu = set(part_in_cpu_raw) - particles_found
+            part_remaining = particles_as_set - particles_found
+            if len(part_remaining) == 0:
+                print('\t\tFound everything at cpu {}!'.format(cpu))
+                break
+
+            print('\t~{} parts in cpu {} ({} remaining)'.format(len(part_in_cpu_raw),
+                                                              cpu, len(part_remaining)))
+
+            ncpu, dim, nparts, x, y, z, part_ids = read_output(
+                os.path.join(args.ramses_output_start,
+                             'part_00032.out{:0>5}'.format(cpu)), header_only=False)
+            _tmp = list(filter_out(x, y, z, part_ids))
+            # no elements found, go to next process
+            if len(_tmp) == 0:
+                continue
+            arr = np.array(_tmp)
+
+            newData = pd.DataFrame(arr, columns=['x', 'y', 'z', 'ids'])
+
+        # data_halo = data[[_d.ids in particles_as_set for k, _d in tqdm(data.iterrows())]]
+
 if __name__ == '__main__':
     global args
     args = parser.parse_args()
     print('Reading lists…')
     ipos = args.ramses_output_start.index('output_')
     nsim = args.ramses_output_start[ipos+7:ipos+13].replace('/', '')
-
     path = os.path.join(args.ramses_output_start, 'info_' + nsim + '.txt')
-    infos = read_infos(path)
+    infos_start = read_infos(path)
+
+    nsim = args.ramses_output_end[ipos+7:ipos+13].replace('/', '')
+    path = os.path.join(args.ramses_output_end, 'info_' + nsim + '.txt')
+    infos_end = read_infos(path)
 
     galaxies = read_galaxy_list(args.galaxy_list)
     halo_list = read_halo_list(args.halo_list)
@@ -250,18 +323,4 @@ if __name__ == '__main__':
     bf_end = build_bloom_filter(args.ramses_output_end)
     bf_start = build_bloom_filter(args.ramses_output_start)
 
-    # print('Finding cpus containing halos…')
-    # for _id, line in associations[associations.gal_id > 0].iterrows():
-    #     if _id > 10:
-    #         break
-    #     parts = (particles_in_halo(args.DM_tree_bricks_start, start=line.halo_id))[line.halo_id]
-    #     cpus = list(cpu_containing(parts, bf_start))
-    #     print('{} cpus containing {} particules of halo {}'.format(len(cpus),
-    #                                                                len(parts),
-    #                                                                line.halo_id))
-
-
-    # Try to group CPUs
-
-
-'''%run sort_galaxy.py --galaxy-list lists/list_kingal_00782.dat --halo-list lists/list_halo.dat.bin --association-list lists/associated_halogal_782.dat.bin --ramses-output-start /data52/Horizon-AGN/OUTPUT_DIR/output_00782/ -dtbs /data40b/Horizon-AGN/TREE_DM_raw/tree_bricks752 -dtbe /data40b/Horizon-AGN/TREE_DM_raw/tree_bricks032 --ramses-output-end /data52/Horizon-AGN/OUTPUT_DIR/output_00002/'''
+    v0(galaxies, halo_list, associations, infos_start, infos_end, bf_start, bf_end)
