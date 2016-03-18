@@ -219,12 +219,15 @@ def build_bloom_filter(basepath):
 
 def cpu_containing(particles, bloom_filters):
     ''' Iterate over all bloom filter and yield the one containing the particle'''
-    for i in tqdm(range(len(bloom_filters))):
-        bf = BloomFilter.open(bloom_filters[i])
+    for cpu in tqdm(range(len(bloom_filters))):
+        bf = BloomFilter.open(bloom_filters[cpu])
+        yieldCPU = False
+        cpu_contains = []
         for p in particles:
             if p in bf:
-                yield i
-                break
+                cpu_contains.append(p)
+
+        yield cpu+1, cpu_contains
 
 if __name__ == '__main__':
     global args
