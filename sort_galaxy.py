@@ -358,4 +358,34 @@ if __name__ == '__main__':
     bf_end = build_bloom_filter(args.ramses_output_end)
     bf_start = build_bloom_filter(args.ramses_output_start)
 
-    v0(galaxies, halo_list, associations, infos_start, infos_end, bf_start, bf_end)
+    genstart = run_all_galaxies(galaxies, halo_list, associations, infos_start, bf_start,
+                  args.ramses_output_start)
+    genend = run_all_galaxies(galaxies, halo_list, associations, infos_end, bf_end,
+                args.ramses_output_end)
+
+    def gen_plot(parts_start, parts_end, gal_id, halo_id):
+        fig = plt.figure(figsize=(16, 9))
+        fig.set
+        ax = fig.add_subplot(121, projection='3d')
+        ax.set_title('Start')
+        ax.scatter3D(parts_start.x, parts_start.y, parts_start.z)
+        ax = fig.add_subplot(122, projection='3d')
+        ax.set_title('End')
+        ax.scatter3D(parts_end.x, parts_end.y, parts_end.z)
+
+        fig.suptitle('Halo {}, galaxy {}'.format(halo_id, gal_id))
+        plt.show()
+
+    def loop():
+        gal_id, halo_id, parts_start = next(genstart)
+        gal_id, halo_id, parts_end = next(genend)
+
+        gen_plot(parts_start, parts_end, gal_id, halo_id)
+
+    def plot(gal_id):
+        _, _, parts_start = v0(gal_id, halo_list, associations, infos_start, bf_start,
+                  args.ramses_output_start)
+        _, _, parts_end = v0(gal_id, halo_list, associations, infos_end, bf_end,
+                args.ramses_output_end)
+        halo_halo = int(associations[associations.gal_id == gal_id].halo_id)
+        gen_plot(parts_start, parts_end, gal_id, halo_id)
