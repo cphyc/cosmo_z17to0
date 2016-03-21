@@ -2,14 +2,19 @@ module io
   implicit none
   real(kind = 8), dimension(:), allocatable :: bound_key
   integer                                   :: ncpu, ndim, levelmin, levelmax
-  real(kind = 8)                            :: t, aexp, unit_l, unit_t
+  real(kind = 8)                            :: t, aexp, unit_l, unit_t, boxlen
 
   integer :: tmp_unit
 
   logical :: infos_read = .false.
 
+  type :: MEMBERS_T
+     integer, dimension(:), allocatable :: ids
+  end type MEMBERS_T
+
   private :: infos_read, tmp_unit
 contains
+
   subroutine read_info_headers(filename)
     character(len=*), intent(in)                           :: filename
 
@@ -32,7 +37,7 @@ contains
     read(10, *)
     read(10, *)
 
-    read(10, *)
+    read(10, '("boxlen      =",E23.15)') boxlen
     read(10, '("time        =",E23.15)') t
     read(10, '("aexp        =",E23.15)') aexp
     read(10, *)
@@ -118,9 +123,9 @@ contains
     open(newunit=tmp_unit, file=filename, form='unformatted')
 
     read(tmp_unit) nbodies
-    read(tmp_unit)
+    read(tmp_unit) !massp
     read(tmp_unit) aexp
-    read(tmp_unit)
+    read(tmp_unit) !omega_t
     read(tmp_unit) age_univ
     read(tmp_unit) nb_of_halos, nb_of_subhalos
 
@@ -130,7 +135,7 @@ contains
 
   subroutine read_brick_data(nb_of_DM, ndim, DM_type, &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
-       & hlevel, LDM, idDM)
+       & hlevel, LDM, idDM, members)
 
     integer, intent(in)                            :: nb_of_DM, ndim
     logical, intent(in)                            :: DM_type
@@ -138,12 +143,14 @@ contains
     real(kind=8), intent(out), dimension(nb_of_DM) :: mvirDM, TvirDM, hlevel
     real(kind=8), intent(out), dimension(ndim, nb_of_DM) :: LDM, posDM
     integer, intent(out), dimension(nb_of_DM)      :: idDM
+    type(MEMBERS_T), dimension(nb_of_DM), intent(out) :: members
 
     integer                                        :: nb_of_parts, idh, mylevel, hosthalo
     integer                                        :: hostsub, nbsub, nextsub
     real(kind=4) :: mhalo, rvir, mvir, tvir, cvel
     real(kind=4), dimension(ndim) :: pos, L
-    real(kind=8)                                   :: drr, Lnorm, csound2
+    real(kind=8)                  :: Lnorm, csound2
+
 
     integer :: i, status
 
@@ -155,19 +162,20 @@ contains
 
     do i = 1, nb_of_DM
        read(tmp_unit) nb_of_parts
-       read(tmp_unit) ! read members
+       allocate(members(i)%ids(nb_of_parts))
+       read(tmp_unit) members(i)%ids
        ! Read properties of each halo
        read(tmp_unit) idh
-       read(tmp_unit)
+       read(tmp_unit) !timestep
        read(tmp_unit) mylevel, hosthalo, hostsub, nbsub, nextsub
 
        read(tmp_unit) mhalo
        read(tmp_unit) pos
-       read(tmp_unit)
+       read(tmp_unit) !speed
        read(tmp_unit) L
-       read(tmp_unit)
-       read(tmp_unit)
-       read(tmp_unit)
+       read(tmp_unit) !r, a, b, c
+       read(tmp_unit) !ek, ep, et
+       read(tmp_unit) !spin
 
        if (.not. DM_type) read(tmp_unit) !sigma stuff
        read(tmp_unit) rvir, mvir, tvir, cvel
@@ -178,15 +186,15 @@ contains
           read(tmp_unit) !density
        endif
 
-       drr = rvir*1d6*3.08d18/unit_l
-
+       ! Convert back to adim units
+       pos = pos / (boxlen*unit_l/3.085677581e+24) + 0.5d0
        hlevel(i) = mylevel
        idDM(i) = idh
        mDM(i) = mhalo*1d11
        posDM(:, i) = pos
        Lnorm = sqrt(L(1)*L(1) + L(2)*L(2) + L(3)*L(3))
        LDM(:, i) = L/Lnorm
-       rvirDM(i) = rvir
+       rvirDM(i) = rvir / (boxlen*unit_l/3.085677581e+24)
        if(DM_type) then
           mvirDM(i) = mvir*1d11
        else
