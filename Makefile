@@ -1,7 +1,8 @@
 CC=ifort
-CFLAGS=-traceback -g
+#CFLAGS=-DBIG_RUN -fast -free -m64 -cpp
+CFLAGS=-i4 -r8 -O0  -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all  -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapuv
 LFLAGS=
-SRCFILES=$(shell find . -type f -name "*.f90" -not -path "./tools/*")
+SRCFILES=$(shell find . -type f -name "*.f90" -not -path "*tools*")
 
 BINFOLDER=bins
 BINFILES=$(patsubst %.f90,$(BINFOLDER)/%,$(SRCFILES))
