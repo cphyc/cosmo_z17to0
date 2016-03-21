@@ -3,9 +3,9 @@ program sort_galaxy
   use misc
   implicit none
 
-  character(LEN=128)                         :: gal_list_filename, outfile, fileinfo='none'
+  character(LEN=128)                         :: gal_list_filename, outfile, fileinfo='none', filename
   character(LEN=128)                         :: dm_halo_list_filename, associations_filename
-  character(LEN=128)                         :: ramses_output_end, ramses_output_start, brick_file, info_file
+  character(LEN=128)                         :: ramses_output_end, ramses_output_start, brick_file, info_file_start, info_file_end
   logical                                    :: verbose
   integer                                    :: ngal, gal_cols, i, j
   integer                                    :: ndm_halo, dm_halo_cols
@@ -29,9 +29,16 @@ program sort_galaxy
   integer :: nbodies, nb_of_halos, nb_of_subhalos, nDM
 
   integer                                    :: gal_num, halo_id, id_in_brick, cpu
+  character(len=5) :: cpu_as_str
   integer, dimension(:), allocatable         :: gal_to_halo
 
   type(MEMBERS_T), dimension(:), allocatable :: members
+  type(INFOS_T) :: infos_start, infos_end
+
+  integer :: ndim, nparts, nstars
+  real(kind=8), dimension(:,:), allocatable :: pos, vel
+  real(kind=8), dimension(:), allocatable :: m, birth_date
+  integer, dimension(:), allocatable :: ids
 
   !-------------------------------------
   ! Read parameters
@@ -106,32 +113,33 @@ program sort_galaxy
   !-------------------------------------
   ! Read brick
   !-------------------------------------
-  call read_info_headers(info_file)
-  print*, "Reading brick file "//brick_file
-  call read_brick_header(brick_file, nbodies, aexp_tmp, age_univ, nb_of_halos, nb_of_subhalos)
+  call read_info_headers(info_file_start, infos_start)
+  call read_info_headers(info_file_start, infos_end)
+  print*, "Reading brick file " // brick_file
+  call read_brick_header(brick_file, infos_start, nbodies, aexp_tmp, age_univ,&
+       nb_of_halos, nb_of_subhalos)
   nDM = nb_of_halos + nb_of_subhalos
   allocate(idDM(nDM))
-  allocate(posDM(ndim, nDM))
+  allocate(posDM(infos_start%ndim, nDM))
   allocate(rvirDM(nDM))
   allocate(mDM(nDM))
   allocate(mvirDM(nDM))
   allocate(TvirDM(nDM))
   allocate(hlevel(nDM))
-  allocate(LDM(ndim, nDM))
+  allocate(LDM(infos_start%ndim, nDM))
   allocate(members(nDM))
 
-  call read_brick_data(nDM, ndim, .true., &
+  call read_brick_data(nDM, infos_start, .true., &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LDM, idDM, members)
 
-  print*, unit_l
   print*, '', 'read!'
   !-------------------------------------
   ! Iterate over each galaxy
   !-------------------------------------
-  allocate(cpu_list(ncpu))
-  allocate(X0(ndim))
-  allocate(X1(ndim))
+  allocate(cpu_list(infos_start%ncpu))
+  allocate(X0(infos_start%ndim))
+  allocate(X1(infos_start%ndim))
   print*, maxval(posDM(1, :)), maxval(posDM(2, :)), maxval(posDM(3, :))
   print*, minval(posDM(1, :)), minval(posDM(2, :)), minval(posDM(3, :))
 
@@ -153,16 +161,32 @@ program sort_galaxy
      end do
      X0 = posDM(:, id_in_brick) - rvirDM(id_in_brick)
      X1 = posDM(:, id_in_brick) + rvirDM(id_in_brick)
-     call get_cpu_list(X0, X1, levelmax, bound_key, cpu_list, ncpu, ndim)
+     call get_cpu_list(X0, X1, infos_start%levelmax, infos_start%bound_key,&
+          cpu_list, infos_start%ncpu, infos_start%ndim)
 
      print*, 'At halo', halo_id
-     print*, X0, X1
-     do j = 1, ncpu
+     print*, X0, X1, rvirDM(id_in_brick)
+     do j = 1, infos_start%ncpu
         cpu = cpu_list(j)
         if (cpu <= 0) then
            exit
         end if
-        
+
+        !-------------------------------------
+        ! reading output
+        !-------------------------------------
+        write(cpu_as_str, '(i4)') cpu
+        filename = trim(ramses_output_start) // '/part_00002.out0' // trim(cpu_as_str)
+
+        print*, 'Reading', filename
+
+        call read_particle_header(filename, ndim, nparts)
+        allocate(pos(ndim, nparts))
+        allocate(vel(ndim, nparts))
+        allocate(m(nparts))
+        allocate(ids(nparts))
+        allocate(birth_date(nparts))
+        call read_particle_data(ndim, nparts, nstars, pos, vel, m ,ids, birth_date)
      end do
   end do
   deallocate(X0)
@@ -214,9 +238,10 @@ contains
     dm_halo_list_filename = "lists/list_halo.dat.bin"
     associations_filename = "lists/associated_halogal_782.dat.bin"
     ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002"
-    ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00782"
+    ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00761"
     brick_file = "/data40b/Horizon-AGN/TREE_DM_celldx2kpc_Rmax_guess9/tree_bricks761"
-    info_file = '/data52/Horizon-AGN/OUTPUT_DIR/output_00782/info_00782.txt'
+    info_file_end = '/data52/Horizon-AGN/OUTPUT_DIR/output_00761/info_00761.txt'
+    info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00002/info_00002.txt'
 
     do i = 1, n, 2
        call getarg(i, opt)
@@ -239,8 +264,10 @@ contains
           ramses_output_end = trim(arg)
        case('-bri')
           brick_file = trim(arg)
-       case('-inf')
-          info_file = trim(arg)
+       case('-ifs')
+          info_file_start = trim(arg)
+       case('-ife')
+          info_file_end = trim(arg)
        case ('-out')
           outfile = trim(arg)
        case ('-fin')
