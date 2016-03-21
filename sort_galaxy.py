@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+ # -*- coding: utf-8 -*-
 from __future__ import print_function
 import argparse
 import pandas as pd
@@ -86,6 +86,7 @@ def particles_in_halo(tree_brick, start=0, end=None, fun_filter=lambda x: True):
 
 def read_galaxy_list(listfile):
     galFile = FortranFile(listfile, 'r')
+    print(listfile)
     ngal, columns = galFile.read_ints()
     _tmp = (galFile.read_reals(dtype=np.float32)).reshape((columns, ngal)).transpose()
     galaxies = pd.DataFrame(_tmp,
@@ -348,7 +349,8 @@ if __name__ == '__main__':
     infos_end = read_infos(path)
 
     galaxies = read_galaxy_list(args.galaxy_list)
-    halo_list = read_halo_list(args.halo_list)
+    _tmp_rows, _tmp_cols = tools.io.read_list_header(args.halo_list)
+    halo_list = tools.io.read_list_data(_tmp_rows, _tmp_cols)
     associations = read_association(args.association_list)
 
     # print('Reading tree…')
