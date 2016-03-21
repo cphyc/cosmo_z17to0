@@ -182,7 +182,7 @@ contains
   end subroutine quick_sort
 
   subroutine get_cpu_list(X0, X1, levelmax, bound_key, cpu_list, ncpu, ndim)
-    real(kind = 8), intent(in)                   :: ncpu, ndim, levelmax
+    integer, intent(in)                          :: ncpu, ndim, levelmax
     real(kind = 8), dimension(1:ndim), intent(in):: X0, X1
     real(kind = 8), dimension(0:ncpu), intent(in):: bound_key
     integer, dimension(ncpu), intent(out)        :: cpu_list
