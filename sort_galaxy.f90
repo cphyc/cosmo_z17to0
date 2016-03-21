@@ -7,7 +7,7 @@ program sort_galaxy
   character(LEN=128)                         :: dm_halo_list_filename, associations_filename
   character(LEN=128)                         :: ramses_output_end, ramses_output_start, brick_file, info_file
   logical                                    :: verbose
-  integer                                    :: ngal, gal_cols, i
+  integer                                    :: ngal, gal_cols, i, j
   integer                                    :: ndm_halo, dm_halo_cols
   integer                                    :: nassoc, assoc_cols
   integer                                    :: ellipticals = 0, spirals = 0, others = 0
@@ -22,13 +22,16 @@ program sort_galaxy
   real(kind=8), dimension(:), allocatable    :: mDM, rvirDM
   real(kind=8), dimension(:), allocatable    :: mvirDM, TvirDM, hlevel
   real(kind=8), dimension(:, :), allocatable :: LDM, posDM
-  integer, dimension(:), allocatable         :: idDM
+  integer, dimension(:), allocatable         :: idDM, cpu_list
 
   real(kind=4):: aexp_tmp, age_univ
+  real(kind=8), dimension(:), allocatable :: X0, X1
   integer :: nbodies, nb_of_halos, nb_of_subhalos, nDM
 
-  integer                                    :: gal_num, halo_num
+  integer                                    :: gal_num, halo_id, id_in_brick, cpu
   integer, dimension(:), allocatable         :: gal_to_halo
+
+  type(MEMBERS_T), dimension(:), allocatable :: members
 
   !-------------------------------------
   ! Read parameters
@@ -88,9 +91,9 @@ program sort_galaxy
   gal_to_halo = -1
   do i = 1, nassoc
      gal_num = int(data_associations(i, 4))
-     halo_num = int(data_associations(i, 1))
+     halo_id = int(data_associations(i, 1))
      if (gal_num > 0) then
-        gal_to_halo(gal_num) = halo_num
+        gal_to_halo(gal_num) = halo_id
      end if
   end do
 
@@ -115,32 +118,60 @@ program sort_galaxy
   allocate(TvirDM(nDM))
   allocate(hlevel(nDM))
   allocate(LDM(ndim, nDM))
+  allocate(members(nDM))
 
-  call read_brick_data(nb_of_halos + nb_of_subhalos, ndim, .true., &
+  call read_brick_data(nDM, ndim, .true., &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
-       & hlevel, LDM, idDM)
-  print*, '\tread!'
+       & hlevel, LDM, idDM, members)
 
+  print*, unit_l
+  print*, '', 'read!'
   !-------------------------------------
-  ! Test
+  ! Iterate over each galaxy
   !-------------------------------------
-  do i = 1, ngal
-     if (gal_to_halo(i) <= 0) then
+  allocate(cpu_list(ncpu))
+  allocate(X0(ndim))
+  allocate(X1(ndim))
+  print*, maxval(posDM(1, :)), maxval(posDM(2, :)), maxval(posDM(3, :))
+  print*, minval(posDM(1, :)), minval(posDM(2, :)), minval(posDM(3, :))
+
+  do i = 1, 1000!ngal
+     halo_id = gal_to_halo(i)
+     if (halo_id <= 0) then
         cycle
      end if
 
      !-------------------------------------
-     ! Getting the particles in halo
+     ! find particles in halo
      !-------------------------------------
-     ! filename = trim(ramses_output_start)
-     ! call read_particle_header(filename, ndim, nparticles)
-     ! call read_particle_data(ndim, nparticles, nstar, x, y, z, vx, vy, vz, m, ids, birth_date)
-     ! allocate(particles())
+     do id_in_brick = 1, nDM
+        if (idDM(id_in_brick) == halo_id) then
+           exit
+        else
+           cycle
+        end if
+     end do
+     X0 = posDM(:, id_in_brick) - rvirDM(id_in_brick)
+     X1 = posDM(:, id_in_brick) + rvirDM(id_in_brick)
+     call get_cpu_list(X0, X1, levelmax, bound_key, cpu_list, ncpu, ndim)
+
+     print*, 'At halo', halo_id
+     print*, X0, X1
+     do j = 1, ncpu
+        cpu = cpu_list(j)
+        if (cpu <= 0) then
+           exit
+        end if
+        
+     end do
   end do
+  deallocate(X0)
+  deallocate(X1)
 
   !-------------------------------------
   ! Cleanup
   !-------------------------------------
+  deallocate(cpu_list)
   deallocate(data_gal)
   deallocate(data_halo)
   deallocate(data_associations)
@@ -153,6 +184,10 @@ program sort_galaxy
   deallocate(TvirDM)
   deallocate(hlevel)
   deallocate(LDM)
+  do i = 1, nDM
+     deallocate(members(i)%ids)
+  end do
+  deallocate(members)
 
 contains
   subroutine read_params ()
