@@ -4,9 +4,11 @@ module io
   integer                                   :: ncpu, ndim, levelmin, levelmax
   real(kind = 8)                            :: t, aexp, unit_l, unit_t
 
+  integer :: tmp_unit
+
   logical :: infos_read = .false.
 
-  private :: infos_read
+  private :: infos_read, tmp_unit
 contains
   subroutine read_info_headers(filename)
     character(len=*), intent(in)                           :: filename
@@ -71,38 +73,38 @@ contains
   subroutine read_particle_header (filename, ndim, nparts)
     character(len=*), intent(in) :: filename
     integer, intent(out)         :: nparts, ndim
-    open(unit = 20, file=filename, status='old', form='unformatted')
-    read(20) !ncpu
-    read(20) ndim
-    read(20) nparts
+    open(newunit = tmp_unit, file=filename, status='old', form='unformatted')
+    read(tmp_unit) !ncpu
+    read(tmp_unit) ndim
+    read(tmp_unit) nparts
   end subroutine read_particle_header
 
-  subroutine read_particle_data (ndim, nparts, nstar, x, y, z, vx, vy, vz, m, ids, birth_date)
+  subroutine read_particle_data (ndim, nparts, nstar, pos, vel, m, ids, birth_date)
     integer, intent(in)                          :: ndim, nparts
-    real(kind=8), dimension(nparts), intent(out) :: x, y, z, vx, vy, vz
+    real(kind=8), dimension(ndim, nparts), intent(out) :: pos, vel
     integer, intent(out)                         :: nstar
     integer,      dimension(nparts), intent(out) :: ids
     real(kind=8), dimension(nparts), intent(out) :: m, birth_date
 
-    read(20) ! ?
-    read(20) nstar
-    read(20) ! ?
-    read(20) ! ?
-    read(20) ! ?
+    read(tmp_unit) ! ?
+    read(tmp_unit) nstar
+    read(tmp_unit) ! ?
+    read(tmp_unit) ! ?
+    read(tmp_unit) ! ?
 
-    read(20) x
-    read(20) y
-    read(20) z
-    read(20) vx
-    read(20) vy
-    read(20) vz
+    read(tmp_unit) pos(1,:)
+    read(tmp_unit) pos(2,:)
+    read(tmp_unit) pos(3,:)
+    read(tmp_unit) vel(1,:)
+    read(tmp_unit) vel(2,:)
+    read(tmp_unit) vel(3,:)
 
-    read(20) m
+    read(tmp_unit) m
 
-    read(20) ids
+    read(tmp_unit) ids
 
-    read(20) birth_date
-    close(20)
+    read(tmp_unit) birth_date
+    close(tmp_unit)
   end subroutine read_particle_data
 
   subroutine read_brick_header(filename, nbodies, aexp, age_univ, nb_of_halos, &
@@ -113,82 +115,77 @@ contains
     real(kind=4), intent(out)    :: aexp
     real(kind=4), intent(out)    :: age_univ
 
-    open(20, file=filename, form='unformatted')
+    open(newunit=tmp_unit, file=filename, form='unformatted')
 
-    read(20) nbodies
-    read(20)
-    read(20) aexp
-    read(20)
-    read(20) age_univ
-    read(20) nb_of_halos, nb_of_subhalos
+    read(tmp_unit) nbodies
+    read(tmp_unit)
+    read(tmp_unit) aexp
+    read(tmp_unit)
+    read(tmp_unit) age_univ
+    read(tmp_unit) nb_of_halos, nb_of_subhalos
 
     age_univ = age_univ*unit_t
 
   end subroutine read_brick_header
 
-  subroutine read_brick_data(nb_of_DM, DM_type, &
-       & mDM, xDM, yDM, zDM, rvirDM, mvirDM, TvirDM,&
-       & hlevel, LxDM, LyDM, LzDM, idDM)
+  subroutine read_brick_data(nb_of_DM, ndim, DM_type, &
+       & mDM, posDM, rvirDM, mvirDM, TvirDM,&
+       & hlevel, LDM, idDM)
 
-    integer, intent(in)                            :: nb_of_DM
+    integer, intent(in)                            :: nb_of_DM, ndim
     logical, intent(in)                            :: DM_type
-    real(kind=8), intent(out), dimension(nb_of_DM) :: mDM, xDM, yDM, zDM, rvirDM
+    real(kind=8), intent(out), dimension(nb_of_DM) :: mDM, rvirDM
     real(kind=8), intent(out), dimension(nb_of_DM) :: mvirDM, TvirDM, hlevel
-    real(kind=8), intent(out), dimension(nb_of_DM) :: LxDM, LyDM, LzDM
+    real(kind=8), intent(out), dimension(ndim, nb_of_DM) :: LDM, posDM
     integer, intent(out), dimension(nb_of_DM)      :: idDM
 
     integer                                        :: nb_of_parts, idh, mylevel, hosthalo
     integer                                        :: hostsub, nbsub, nextsub
-    real(kind=8)                                   :: mhalo, px, py, pz, Lx, Ly, Lz, rvir, mvir
-    real(kind=8)                                   :: xx, yy, zz, drr, tvir, cvel, Lnorm, csound2
+    real(kind=4) :: mhalo, rvir, mvir, tvir, cvel
+    real(kind=4), dimension(ndim) :: pos, L
+    real(kind=8)                                   :: drr, Lnorm, csound2
 
     integer :: i, status
 
     call assert_infos(status)
     if (status > 0) then
-       close(20)
+       close(tmp_unit)
        return
     end if
 
     do i = 1, nb_of_DM
-       read(20) nb_of_parts
-       read(20) ! read members
+       read(tmp_unit) nb_of_parts
+       read(tmp_unit) ! read members
        ! Read properties of each halo
-       read(20) idh
-       read(20)
-       read(20) mylevel, hosthalo, hostsub, nbsub, nextsub
-       read(20) mhalo
-       read(20) px, py, pz
-       read(20)
-       read(20) Lx, Ly, Lz
-       read(20)
-       read(20)
-       read(20)
-       print*, 'Here'
-       if (.not. DM_type) read(20) !sigma stuff
-       read(20) rvir, mvir, tvir, cvel
-       read(20)
+       read(tmp_unit) idh
+       read(tmp_unit)
+       read(tmp_unit) mylevel, hosthalo, hostsub, nbsub, nextsub
+
+       read(tmp_unit) mhalo
+       read(tmp_unit) pos
+       read(tmp_unit)
+       read(tmp_unit) L
+       read(tmp_unit)
+       read(tmp_unit)
+       read(tmp_unit)
+
+       if (.not. DM_type) read(tmp_unit) !sigma stuff
+       read(tmp_unit) rvir, mvir, tvir, cvel
+       read(tmp_unit)
        if (.not. DM_type) then
-          read(20) !npoints
-          read(20) !rdum
-          read(20) !density
+          read(tmp_unit) !npoints
+          read(tmp_unit) !rdum
+          read(tmp_unit) !density
        endif
-       close(20)
-       xx = px*1d6*3.08d18/unit_l+0.5d0
-       yy = py*1d6*3.08d18/unit_l+0.5d0
-       zz = pz*1d6*3.08d18/unit_l+0.5d0
+
        drr = rvir*1d6*3.08d18/unit_l
 
        hlevel(i) = mylevel
        idDM(i) = idh
        mDM(i) = mhalo*1d11
-       xDM(i) = px
-       yDM(i) = py
-       zDM(i) = pz
-       Lnorm = sqrt(Lx*Lx + Ly*Ly + Lz*Lz)
-       LxDM(i) = Lx/Lnorm
-       LyDM(i) = Ly/Lnorm
-       LzDM(i) = Lz/Lnorm
+       posDM(:, i) = pos
+       Lnorm = sqrt(L(1)*L(1) + L(2)*L(2) + L(3)*L(3))
+       LDM(:, i) = L/Lnorm
        rvirDM(i) = rvir
        if(DM_type) then
           mvirDM(i) = mvir*1d11
@@ -199,7 +196,7 @@ contains
        TvirDM(i) = csound2*1.66d-24/1.666666667/1.38d-16
 
     end do
-
+    close(tmp_unit)
   end subroutine read_brick_data
 
   subroutine free ()
@@ -208,25 +205,20 @@ contains
     end if
   end subroutine free
 
-  subroutine read_list_header(filename, lines, columns, unit)
+  subroutine read_list_header(filename, lines, columns)
     character(len=*), intent(in) :: filename
     integer, intent(out)         :: lines, columns
-    integer, intent(out)         :: unit
 
-    open(newunit=unit, file=filename, form='unformatted')
-    read(unit) lines, columns
-
-    ! columns = columns + 1 ! firt column: id
-    print*, lines, '*', columns
+    open(newunit=tmp_unit, file=filename, form='unformatted')
+    read(tmp_unit) lines, columns
 
   end subroutine read_list_header
 
-  subroutine read_list_data(lines, columns, data, unit)
+  subroutine read_list_data(lines, columns, data)
     integer, intent(in)                                  :: lines, columns
-    integer, intent(out) :: unit
     real(kind=4), dimension(lines, columns), intent(out) :: data
 
-    read(unit) data
-    close(unit)
+    read(tmp_unit) data
+    close(tmp_unit)
   end subroutine read_list_data
 end module io
