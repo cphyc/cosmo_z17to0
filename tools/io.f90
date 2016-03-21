@@ -1,26 +1,29 @@
 module io
   implicit none
-  real(kind = 8), dimension(:), allocatable :: bound_key
-  integer                                   :: ncpu, ndim, levelmin, levelmax
-  real(kind = 8)                            :: t, aexp, unit_l, unit_t, boxlen
 
   integer :: tmp_unit
-
   logical :: infos_read = .false.
 
   type :: MEMBERS_T
      integer, dimension(:), allocatable :: ids
   end type MEMBERS_T
 
+  type :: INFOS_T
+     integer                                   :: ncpu, ndim, levelmin, levelmax
+     real(kind = 8)                            :: t, aexp, unit_l, unit_t, boxlen
+     real(kind = 8), dimension(:), allocatable :: bound_key
+  end type INFOS_T
+
   private :: infos_read, tmp_unit
 contains
 
-  subroutine read_info_headers(filename)
+  subroutine read_info_headers(filename, infos)
     character(len=*), intent(in)                           :: filename
+    type(INFOS_T), intent(out) :: infos
 
-    logical                                                :: ok
-    integer                                                :: impi, i
-    character(len=80)                                      :: ordering
+    logical            :: ok
+    integer            :: impi, i
+    character(len=128) :: ordering
 
     inquire(file=filename, exist=ok)
     if (.not. ok) then
@@ -29,37 +32,37 @@ contains
     end if
 
     open(unit=10, file=filename, form='formatted', status='old')
-    read(10, '("ncpu        =",I11)') ncpu
-    read(10, '("ndim        =",I11)') ndim
-    read(10, '("levelmin    =",I11)') levelmin
-    read(10, '("levelmax    =",I11)') levelmax
+    read(10, '("ncpu        =",I11)') infos%ncpu
+    read(10, '("ndim        =",I11)') infos%ndim
+    read(10, '("levelmin    =",I11)') infos%levelmin
+    read(10, '("levelmax    =",I11)') infos%levelmax
     read(10, *)
     read(10, *)
     read(10, *)
 
-    read(10, '("boxlen      =",E23.15)') boxlen
-    read(10, '("time        =",E23.15)') t
-    read(10, '("aexp        =",E23.15)') aexp
+    read(10, '("boxlen      =",E23.15)') infos%boxlen
+    read(10, '("time        =",E23.15)') infos%t
+    read(10, '("aexp        =",E23.15)') infos%aexp
     read(10, *)
     read(10, *)
     read(10, *)
     read(10, *)
     read(10, *)
-    read(10, '("unit_l      =",E23.15)') unit_l
+    read(10, '("unit_l      =",E23.15)') infos%unit_l
     read(10, *)
-    read(10, '("unit_t      =",E23.15)') unit_t
+    read(10, '("unit_t      =",E23.15)') infos%unit_t
 
     read(10, *)
     read(10, '("ordering type=",A80)') ordering
     read(10, *)
 
     if (TRIM(ordering) == 'hilbert') then
-       if (.not. allocated(bound_key)) then
-          allocate(bound_key(0:ncpu))
+       if (.not. allocated(infos%bound_key)) then
+          allocate(infos%bound_key(0:infos%ncpu))
        end if
 
-       do impi = 1, ncpu
-          read(10, '(I8,1X,E23.15,1X,E23.15)') i, bound_key(impi-1), bound_key(impi)
+       do impi = 1, infos%ncpu
+          read(10, '(I8,1X,E23.15,1X,E23.15)') i, infos%bound_key(impi-1), infos%bound_key(impi)
        end do
     endif
     close(10)
@@ -112,9 +115,10 @@ contains
     close(tmp_unit)
   end subroutine read_particle_data
 
-  subroutine read_brick_header(filename, nbodies, aexp, age_univ, nb_of_halos, &
+  subroutine read_brick_header(filename, infos, nbodies, aexp, age_univ, nb_of_halos, &
        nb_of_subhalos)
     character(len=*), intent(in) :: filename
+    type(INFOS_T), intent(in)    :: infos
 
     integer, intent(out)         :: nbodies, nb_of_subhalos, nb_of_halos
     real(kind=4), intent(out)    :: aexp
@@ -129,26 +133,28 @@ contains
     read(tmp_unit) age_univ
     read(tmp_unit) nb_of_halos, nb_of_subhalos
 
-    age_univ = age_univ*unit_t
+    age_univ = age_univ*infos%unit_t
 
   end subroutine read_brick_header
 
-  subroutine read_brick_data(nb_of_DM, ndim, DM_type, &
+  subroutine read_brick_data(nb_of_DM, infos, DM_type, &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LDM, idDM, members)
 
-    integer, intent(in)                            :: nb_of_DM, ndim
+    integer, intent(in)                            :: nb_of_DM
     logical, intent(in)                            :: DM_type
+    type(INFOS_T), intent(in)                      :: infos
+
     real(kind=8), intent(out), dimension(nb_of_DM) :: mDM, rvirDM
     real(kind=8), intent(out), dimension(nb_of_DM) :: mvirDM, TvirDM, hlevel
-    real(kind=8), intent(out), dimension(ndim, nb_of_DM) :: LDM, posDM
+    real(kind=8), intent(out), dimension(infos%ndim, nb_of_DM) :: LDM, posDM
     integer, intent(out), dimension(nb_of_DM)      :: idDM
     type(MEMBERS_T), dimension(nb_of_DM), intent(out) :: members
 
     integer                                        :: nb_of_parts, idh, mylevel, hosthalo
     integer                                        :: hostsub, nbsub, nextsub
     real(kind=4) :: mhalo, rvir, mvir, tvir, cvel
-    real(kind=4), dimension(ndim) :: pos, L
+    real(kind=4), dimension(infos%ndim) :: pos, L
     real(kind=8)                  :: Lnorm, csound2
 
 
@@ -187,14 +193,14 @@ contains
        endif
 
        ! Convert back to adim units
-       pos = pos / (boxlen*unit_l/3.085677581e+24) + 0.5d0
+       pos = pos / (infos%boxlen*infos%unit_l/3.085677581e+24) + 0.5d0
        hlevel(i) = mylevel
        idDM(i) = idh
        mDM(i) = mhalo*1d11
        posDM(:, i) = pos
        Lnorm = sqrt(L(1)*L(1) + L(2)*L(2) + L(3)*L(3))
        LDM(:, i) = L/Lnorm
-       rvirDM(i) = rvir / (boxlen*unit_l/3.085677581e+24)
+       rvirDM(i) = rvir / (infos%boxlen*infos%unit_l/3.085677581e+24)
        if(DM_type) then
           mvirDM(i) = mvir*1d11
        else
@@ -206,12 +212,6 @@ contains
     end do
     close(tmp_unit)
   end subroutine read_brick_data
-
-  subroutine free ()
-    if (allocated(bound_key)) then
-       deallocate(bound_key)
-    end if
-  end subroutine free
 
   subroutine read_list_header(filename, lines, columns)
     character(len=*), intent(in) :: filename
