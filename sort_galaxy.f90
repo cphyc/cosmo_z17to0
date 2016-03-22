@@ -7,7 +7,7 @@ program sort_galaxy
   character(LEN=128)                         :: dm_halo_list_filename, associations_filename
   character(LEN=128)                         :: ramses_output_end, ramses_output_start, brick_file, info_file_start, info_file_end
   logical                                    :: verbose
-  integer                                    :: ngal, gal_cols, i, j
+  integer                                    :: ngal, gal_cols, i, j, k, index
   integer                                    :: ndm_halo, dm_halo_cols
   integer                                    :: nassoc, assoc_cols
   integer                                    :: ellipticals = 0, spirals = 0, others = 0
@@ -28,17 +28,17 @@ program sort_galaxy
   real(kind=8), dimension(:), allocatable :: X0, X1
   integer :: nbodies, nb_of_halos, nb_of_subhalos, nDM
 
-  integer                                    :: gal_num, halo_id, id_in_brick, cpu
+  integer                                    :: gal_id, halo_id, id_in_brick, cpu
   character(len=5) :: cpu_as_str
   integer, dimension(:), allocatable         :: gal_to_halo
 
   type(MEMBERS_T), dimension(:), allocatable :: members
   type(INFOS_T) :: infos_start, infos_end
 
-  integer :: ndim, nparts, nstars
-  real(kind=8), dimension(:,:), allocatable :: pos, vel
-  real(kind=8), dimension(:), allocatable :: m, birth_date
-  integer, dimension(:), allocatable :: ids
+  integer :: ndim, nparts, nstars, particles_to_find
+  real(kind=8), dimension(:,:), allocatable :: pos, vel, tmp_pos, tmp_vel
+  real(kind=8), dimension(:), allocatable :: tmp_m, tmp_birth_date
+  integer, dimension(:), allocatable :: tmp_ids
 
   !-------------------------------------
   ! Read parameters
@@ -97,12 +97,13 @@ program sort_galaxy
   allocate(gal_to_halo(int(maxval(data_gal(:, 1))))) ! this is the ids
   gal_to_halo = -1
   do i = 1, nassoc
-     gal_num = int(data_associations(i, 4))
+     gal_id = int(data_associations(i, 4))
      halo_id = int(data_associations(i, 1))
-     if (gal_num > 0) then
-        gal_to_halo(gal_num) = halo_id
+     if (gal_id > 0) then
+        gal_to_halo(gal_id) = halo_id
      end if
   end do
+  i = -1
 
   print*, 'Some statistics…'
   ! Sort the galaxies
@@ -128,23 +129,24 @@ program sort_galaxy
   allocate(hlevel(nDM))
   allocate(LDM(infos_start%ndim, nDM))
   allocate(members(nDM))
-
+  print*, infos_start%boxlen, infos_start%unit_l/3.085677581e+24,  infos_start%boxlen*infos_start%unit_l/3.085677581e+24
   call read_brick_data(nDM, infos_start, .true., &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LDM, idDM, members)
 
   print*, '', 'read!'
+  ! print*, maxval(posDM(1,:)), maxval(posDM(2,:)), maxval(posDM(3,:))
+  ! print*, minval(posDM(1,:)), minval(posDM(2,:)), minval(posDM(3,:))
   !-------------------------------------
   ! Iterate over each galaxy
   !-------------------------------------
   allocate(cpu_list(infos_start%ncpu))
   allocate(X0(infos_start%ndim))
   allocate(X1(infos_start%ndim))
-  print*, maxval(posDM(1, :)), maxval(posDM(2, :)), maxval(posDM(3, :))
-  print*, minval(posDM(1, :)), minval(posDM(2, :)), minval(posDM(3, :))
 
-  do i = 1, 1000!ngal
-     halo_id = gal_to_halo(i)
+  do gal_id = 1, 1 !ngal
+     halo_id = gal_to_halo(gal_id)
+     print*, 'Doing galaxy', gal_id, 'halo', halo_id
      if (halo_id <= 0) then
         cycle
      end if
@@ -161,13 +163,26 @@ program sort_galaxy
      end do
      X0 = posDM(:, id_in_brick) - rvirDM(id_in_brick)
      X1 = posDM(:, id_in_brick) + rvirDM(id_in_brick)
-     call get_cpu_list(X0, X1, infos_start%levelmax, infos_start%bound_key,&
+     print*, X0, X1
+     call get_cpu_list(X0, X1, infos_start%levelmax, infos_start%bound_key, &
           cpu_list, infos_start%ncpu, infos_start%ndim)
 
-     print*, 'At halo', halo_id
-     print*, X0, X1, rvirDM(id_in_brick)
-     do j = 1, infos_start%ncpu
-        cpu = cpu_list(j)
+     !-------------------------------------
+     ! Number of particles to read
+     !-------------------------------------
+     allocate(pos(infos_start%ndim, members(id_in_brick)%parts))
+     allocate(vel(infos_start%ndim, members(id_in_brick)%parts))
+     pos = 0
+     vel = 0
+     !-------------------------------------
+     ! Reading outputs
+     !-------------------------------------
+     call quick_sort(members(halo_id)%ids, members(halo_id)%parts)
+
+     print*, 'Looking for'
+     print*, members(halo_id)%ids
+     do j = 3277,3277!1, infos_start%ncpu
+        cpu = 3277!cpu_list(j)
         if (cpu <= 0) then
            exit
         end if
@@ -175,19 +190,47 @@ program sort_galaxy
         !-------------------------------------
         ! reading output
         !-------------------------------------
-        write(cpu_as_str, '(i4)') cpu
-        filename = trim(ramses_output_start) // '/part_00002.out0' // trim(cpu_as_str)
+        write(cpu_as_str, '(i0.4)') cpu
+        filename = trim(ramses_output_start) // '/part_00032.out0' // trim(cpu_as_str)
 
         print*, 'Reading', filename
 
         call read_particle_header(filename, ndim, nparts)
-        allocate(pos(ndim, nparts))
-        allocate(vel(ndim, nparts))
-        allocate(m(nparts))
-        allocate(ids(nparts))
-        allocate(birth_date(nparts))
-        call read_particle_data(ndim, nparts, nstars, pos, vel, m ,ids, birth_date)
+        allocate(tmp_pos(ndim, nparts))
+        allocate(tmp_vel(ndim, nparts))
+        allocate(tmp_m(nparts))
+        allocate(tmp_ids(nparts))
+        allocate(tmp_birth_date(nparts))
+        call read_particle_data(ndim, nparts, nstars, tmp_pos, tmp_vel, tmp_m,&
+             tmp_ids, tmp_birth_date)
+        !-------------------------------------
+        ! find particles in halo
+        !-------------------------------------
+        particles_to_find = members(halo_id)%parts - 1
+        do k = 1, nparts
+           index = indexOf(tmp_ids(k), members(halo_id)%ids)
+           if (index > 0) then
+              particles_to_find = particles_to_find - 1
+              ! Store the data
+              pos(:, index) = tmp_pos(:, k)
+              vel(:, index) = tmp_vel(:, k)
+              if (particles_to_find < 0) then
+                 ! No need to read more, we found all particles
+                 print*, 'Found all particles!'
+                 exit
+              end if
+           end if
+        end do
+        open(unit=11, file="cpu3246", form='unformatted')
+        write(11) tmp_ids
+        close(11)
+        open(unit=11, file="part_list", form='unformatted')
+        write(11) members(halo_id)%ids
+        close(11)
+        deallocate(tmp_pos, tmp_vel, tmp_m, tmp_ids, tmp_birth_date)
      end do
+     print*, pos
+     deallocate(pos, vel)
   end do
   deallocate(X0)
   deallocate(X1)
@@ -237,11 +280,11 @@ contains
     gal_list_filename = "lists/list_kingal_00782.dat"
     dm_halo_list_filename = "lists/list_halo.dat.bin"
     associations_filename = "lists/associated_halogal_782.dat.bin"
-    ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002"
+    ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00032"
     ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00761"
     brick_file = "/data40b/Horizon-AGN/TREE_DM_celldx2kpc_Rmax_guess9/tree_bricks761"
     info_file_end = '/data52/Horizon-AGN/OUTPUT_DIR/output_00761/info_00761.txt'
-    info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00002/info_00002.txt'
+    info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00032/info_00032.txt'
 
     do i = 1, n, 2
        call getarg(i, opt)
