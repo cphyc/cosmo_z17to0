@@ -5,8 +5,9 @@ program sort_galaxy
 
   character(LEN=128)                         :: gal_list_filename, outfile, fileinfo='none', filename
   character(LEN=128)                         :: dm_halo_list_filename, associations_filename
-  character(LEN=128)                         :: ramses_output_end, ramses_output_start, brick_file, info_file_start, info_file_end
-  logical                                    :: verbose
+  character(LEN=128)                         :: ramses_output_end, ramses_output_start, brick_file
+  character(LEN=128)                         :: info_file_start, info_file_end, output_dir
+  logical                                    :: verbose, ok
   integer                                    :: ngal, gal_cols, i, j, k, index
   integer                                    :: ndm_halo, dm_halo_cols
   integer                                    :: nassoc, assoc_cols
@@ -24,21 +25,22 @@ program sort_galaxy
   real(kind=8), dimension(:, :), allocatable :: LDM, posDM
   integer, dimension(:), allocatable         :: idDM, cpu_list
 
-  real(kind=4):: aexp_tmp, age_univ
-  real(kind=8), dimension(:), allocatable :: X0, X1
-  integer :: nbodies, nb_of_halos, nb_of_subhalos, nDM
+  real(kind=4)                               :: aexp_tmp, age_univ
+  real(kind=8), dimension(:), allocatable    :: X0, X1
+  integer                                    :: nbodies, nb_of_halos, nb_of_subhalos, nDM
 
   integer                                    :: gal_id, halo_id, id_in_brick, cpu
-  character(len=5) :: cpu_as_str
+  character(len=20)                          :: tmp_str
   integer, dimension(:), allocatable         :: gal_to_halo
 
   type(MEMBERS_T), dimension(:), allocatable :: members
-  type(INFOS_T) :: infos_start, infos_end
+  type(INFOS_T)                              :: infos_start, infos_end
 
-  integer :: ndim, nparts, nstars, particles_to_find
-  real(kind=8), dimension(:,:), allocatable :: pos, vel, tmp_pos, tmp_vel
-  real(kind=8), dimension(:), allocatable :: tmp_m, tmp_birth_date
-  integer, dimension(:), allocatable :: tmp_ids
+  integer                                    :: ndim, nparts, nstars, particles_to_find
+  real(kind=8), dimension(:,:), allocatable  :: pos, vel, tmp_pos, tmp_vel
+  real(kind=8), dimension(:), allocatable    :: tmp_m, tmp_birth_date
+  integer, dimension(:), allocatable         :: tmp_ids
+  integer(kind=8), dimension(:), allocatable         :: halo_mask
 
   !-------------------------------------
   ! Read parameters
@@ -112,7 +114,7 @@ program sort_galaxy
   print*, int(100 - (ellipticals + spirals)*100./ngal), "% others"
 
   !-------------------------------------
-  ! Read brick
+  ! Read brick at start output
   !-------------------------------------
   call read_info_headers(info_file_start, infos_start)
   call read_info_headers(info_file_start, infos_end)
@@ -144,96 +146,57 @@ program sort_galaxy
   allocate(X0(infos_start%ndim))
   allocate(X1(infos_start%ndim))
 
-  do gal_id = 1, 1 !ngal
-     halo_id = gal_to_halo(gal_id)
-     print*, 'Doing galaxy', gal_id, 'halo', halo_id
-     if (halo_id <= 0) then
-        cycle
-     end if
+  allocate(halo_mask(nDM))
+  halo_mask = 0
 
+  !$OMP DO SCHEDULE(guided) REDUCTION(+:halo_mask)
+  do cpu = 1, infos_start%ncpu
      !-------------------------------------
-     ! find particles in halo
+     ! reading output of cpu
      !-------------------------------------
-     do id_in_brick = 1, nDM
-        if (idDM(id_in_brick) == halo_id) then
-           exit
-        else
-           cycle
-        end if
-     end do
-     X0 = posDM(:, id_in_brick) - rvirDM(id_in_brick)
-     X1 = posDM(:, id_in_brick) + rvirDM(id_in_brick)
-     print*, X0, X1
-     call get_cpu_list(X0, X1, infos_start%levelmax, infos_start%bound_key, &
-          cpu_list, infos_start%ncpu, infos_start%ndim)
+     write(tmp_str, '(i0.4)') cpu
+     filename = trim(ramses_output_start) // '/part_00032.out0' // trim(tmp_str)
 
-     !-------------------------------------
-     ! Number of particles to read
-     !-------------------------------------
-     allocate(pos(infos_start%ndim, members(id_in_brick)%parts))
-     allocate(vel(infos_start%ndim, members(id_in_brick)%parts))
-     pos = 0
-     vel = 0
-     !-------------------------------------
-     ! Reading outputs
-     !-------------------------------------
-     call quick_sort(members(halo_id)%ids, members(halo_id)%parts)
+     print*, 'Reading', trim(filename)
 
-     print*, 'Looking for'
-     print*, members(halo_id)%ids
-     do j = 3277,3277!1, infos_start%ncpu
-        cpu = 3277!cpu_list(j)
-        if (cpu <= 0) then
-           exit
+     call read_particle_header(filename, ndim, nparts)
+     allocate(tmp_pos(ndim, nparts))
+     allocate(tmp_vel(ndim, nparts))
+     allocate(tmp_m(nparts))
+     allocate(tmp_ids(nparts))
+     allocate(tmp_birth_date(nparts))
+     call read_particle_data(ndim, nparts, nstars, tmp_pos, tmp_vel, tmp_m, &
+          tmp_ids, tmp_birth_date)
+
+     X0 = minval(tmp_pos, 2)
+     X1 = maxval(tmp_pos, 2)
+
+     do halo_id = 1, nDm
+        if ( X0(1) < posDM(1, halo_id) - rvirDM(halo_id) .and. &
+             X1(1) > posDM(1, halo_id) + rvirDM(halo_id) .and. &
+             X0(2) < posDM(2, halo_id) - rvirDM(halo_id) .and. &
+             X1(2) > posDM(2, halo_id) + rvirDM(halo_id) .and. &
+             X0(3) < posDM(3, halo_id) - rvirDM(halo_id) .and. &
+             X1(3) > posDM(3, halo_id) + rvirDM(halo_id) ) then
+           ! Store as an integer in 'base ncpu', so that any value between
+           ! 1 and ncpu gives the first cpu, value/ncpu%ncpu → 2nd CPU, value/ncpu**2%ncpu → 3rd value, …
+           ! if (halo_mask(halo_id) > 0) then
+           !    print*, 'Had', halo_mask(halo_id)
+           ! end if
+           halo_mask(halo_id) = cpu + halo_mask(halo_id)*infos_start%ncpu
         end if
 
-        !-------------------------------------
-        ! reading output
-        !-------------------------------------
-        write(cpu_as_str, '(i0.4)') cpu
-        filename = trim(ramses_output_start) // '/part_00032.out0' // trim(cpu_as_str)
-
-        print*, 'Reading', filename
-
-        call read_particle_header(filename, ndim, nparts)
-        allocate(tmp_pos(ndim, nparts))
-        allocate(tmp_vel(ndim, nparts))
-        allocate(tmp_m(nparts))
-        allocate(tmp_ids(nparts))
-        allocate(tmp_birth_date(nparts))
-        call read_particle_data(ndim, nparts, nstars, tmp_pos, tmp_vel, tmp_m,&
-             tmp_ids, tmp_birth_date)
-        !-------------------------------------
-        ! find particles in halo
-        !-------------------------------------
-        particles_to_find = members(halo_id)%parts - 1
-        do k = 1, nparts
-           index = indexOf(tmp_ids(k), members(halo_id)%ids)
-           if (index > 0) then
-              particles_to_find = particles_to_find - 1
-              ! Store the data
-              pos(:, index) = tmp_pos(:, k)
-              vel(:, index) = tmp_vel(:, k)
-              if (particles_to_find < 0) then
-                 ! No need to read more, we found all particles
-                 print*, 'Found all particles!'
-                 exit
-              end if
-           end if
-        end do
-        open(unit=11, file="cpu3246", form='unformatted')
-        write(11) tmp_ids
-        close(11)
-        open(unit=11, file="part_list", form='unformatted')
-        write(11) members(halo_id)%ids
-        close(11)
-        deallocate(tmp_pos, tmp_vel, tmp_m, tmp_ids, tmp_birth_date)
      end do
-     print*, pos
-     deallocate(pos, vel)
+     deallocate(tmp_pos, tmp_vel, tmp_m, tmp_ids, tmp_birth_date)
   end do
-  deallocate(X0)
-  deallocate(X1)
+  !$OMP END DO
+
+  open(12, file='halo_to_cpu')
+  write(12, '(2a64)') 'halo_id', 'cpu'
+  do i = 1, nDM
+     write(12, '(2i64)') i, halo_mask(i)
+  end do
+  deallocate(halo_mask)
 
   !-------------------------------------
   ! Cleanup
@@ -282,9 +245,10 @@ contains
     associations_filename = "lists/associated_halogal_782.dat.bin"
     ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00032"
     ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00761"
-    brick_file = "/data40b/Horizon-AGN/TREE_DM_celldx2kpc_Rmax_guess9/tree_bricks761"
+    brick_file = "/data40b/Horizon-AGN/TREE_DM_celldx2kpc_Rmax_guess9/tree_bricks032"
     info_file_end = '/data52/Horizon-AGN/OUTPUT_DIR/output_00761/info_00761.txt'
     info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00032/info_00032.txt'
+    output_dir = '/data74/cadiou/halo_files/'
 
     do i = 1, n, 2
        call getarg(i, opt)
