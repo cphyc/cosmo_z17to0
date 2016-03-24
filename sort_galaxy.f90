@@ -180,9 +180,6 @@ program sort_galaxy
              X1(3) > posDM(3, halo_id) + rvirDM(halo_id) ) then
            ! Store as an integer in 'base ncpu', so that any value between
            ! 1 and ncpu gives the first cpu, value/ncpu%ncpu → 2nd CPU, value/ncpu**2%ncpu → 3rd value, …
-           ! if (halo_mask(halo_id) > 0) then
-           !    print*, 'Had', halo_mask(halo_id)
-           ! end if
            halo_mask(halo_id) = cpu + halo_mask(halo_id)*infos_start%ncpu
         end if
 
@@ -196,6 +193,11 @@ program sort_galaxy
   do i = 1, nDM
      write(12, '(2i64)') i, halo_mask(i)
   end do
+  close(12)
+  open(12, file='halo_to_cpu.bin')
+  write(12) halo_mask
+  close(12)
+  
   deallocate(halo_mask)
 
   !-------------------------------------
