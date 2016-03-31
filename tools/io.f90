@@ -6,6 +6,7 @@ module io
 
   type :: MEMBERS_T
      integer, dimension(:), allocatable :: ids
+     integer :: parts
   end type MEMBERS_T
 
   type :: INFOS_T
@@ -14,9 +15,10 @@ module io
      real(kind = 8), dimension(:), allocatable :: bound_key
   end type INFOS_T
 
-  private :: infos_read, tmp_unit
+  private :: infos_read, tmp_unit, read_1, read_2, read_2_dummy
 contains
 
+  !! Read information of an output, returning an INFOS_T object
   subroutine read_info_headers(filename, infos)
     character(len=*), intent(in)                           :: filename
     type(INFOS_T), intent(out) :: infos
@@ -78,6 +80,7 @@ contains
     end if
   end subroutine assert_infos
 
+  !! Read particle file header, returning the number of particules and the number of dimensions
   subroutine read_particle_header (filename, ndim, nparts)
     character(len=*), intent(in) :: filename
     integer, intent(out)         :: nparts, ndim
@@ -87,6 +90,7 @@ contains
     read(tmp_unit) nparts
   end subroutine read_particle_header
 
+  !! Read particles data, returning the particles information
   subroutine read_particle_data (ndim, nparts, nstar, pos, vel, m, ids, birth_date)
     integer, intent(in)                          :: ndim, nparts
     real(kind=8), dimension(ndim, nparts), intent(out) :: pos, vel
@@ -94,18 +98,26 @@ contains
     integer,      dimension(nparts), intent(out) :: ids
     real(kind=8), dimension(nparts), intent(out) :: m, birth_date
 
+    real(kind=8), dimension(nparts) :: tmp
+
     read(tmp_unit) ! ?
     read(tmp_unit) nstar
     read(tmp_unit) ! ?
     read(tmp_unit) ! ?
     read(tmp_unit) ! ?
 
-    read(tmp_unit) pos(1,:)
-    read(tmp_unit) pos(2,:)
-    read(tmp_unit) pos(3,:)
-    read(tmp_unit) vel(1,:)
-    read(tmp_unit) vel(2,:)
-    read(tmp_unit) vel(3,:)
+    read(tmp_unit) tmp
+    pos(1,:) = tmp
+    read(tmp_unit) tmp
+    pos(2,:) = tmp
+    read(tmp_unit) tmp
+    pos(3,:) = tmp
+    read(tmp_unit) tmp
+    vel(1,:) = tmp
+    read(tmp_unit) tmp
+    vel(2,:) = tmp
+    read(tmp_unit) tmp
+    vel(3,:) = tmp
 
     read(tmp_unit) m
 
@@ -115,6 +127,7 @@ contains
     close(tmp_unit)
   end subroutine read_particle_data
 
+  !! Read the header of a brick file
   subroutine read_brick_header(filename, infos, nbodies, aexp, age_univ, nb_of_halos, &
        nb_of_subhalos)
     character(len=*), intent(in) :: filename
@@ -137,6 +150,7 @@ contains
 
   end subroutine read_brick_header
 
+  !! Read a brick file, returning the relevant quantities of each halo
   subroutine read_brick_data(nb_of_DM, infos, DM_type, &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LDM, idDM, members)
@@ -169,6 +183,7 @@ contains
     do i = 1, nb_of_DM
        read(tmp_unit) nb_of_parts
        allocate(members(i)%ids(nb_of_parts))
+       members(i)%parts = nb_of_parts
        read(tmp_unit) members(i)%ids
        ! Read properties of each halo
        read(tmp_unit) idh
@@ -193,14 +208,14 @@ contains
        endif
 
        ! Convert back to adim units
-       pos = pos / (infos%boxlen*infos%unit_l/3.085677581e+24) + 0.5d0
+
        hlevel(i) = mylevel
        idDM(i) = idh
        mDM(i) = mhalo*1d11
-       posDM(:, i) = pos
+       posDM(:, i) = pos / (infos%boxlen*infos%unit_l/3.08d24)+0.5d0
        Lnorm = sqrt(L(1)*L(1) + L(2)*L(2) + L(3)*L(3))
        LDM(:, i) = L/Lnorm
-       rvirDM(i) = rvir / (infos%boxlen*infos%unit_l/3.085677581e+24)
+       rvirDM(i) = rvir / (infos%boxlen*infos%unit_l/3.08d24)
        if(DM_type) then
           mvirDM(i) = mvir*1d11
        else
@@ -213,6 +228,7 @@ contains
     close(tmp_unit)
   end subroutine read_brick_data
 
+  !! Read the headers of the list, returning the shape of the data
   subroutine read_list_header(filename, lines, columns)
     character(len=*), intent(in) :: filename
     integer, intent(out)         :: lines, columns
@@ -222,6 +238,7 @@ contains
 
   end subroutine read_list_header
 
+  !! Read the data contained in the list, returning it
   subroutine read_list_data(lines, columns, data)
     integer, intent(in)                                  :: lines, columns
     real(kind=4), dimension(lines, columns), intent(out) :: data
@@ -229,4 +246,147 @@ contains
     read(tmp_unit) data
     close(tmp_unit)
   end subroutine read_list_data
+
+  !! Read the first part of the mergertree headers, returning the number of steps of the simulation
+  subroutine read_mergertree_headers_1 (mergertree_file, nsteps)
+    character(len=*), intent(in)                    :: mergertree_file
+    integer(kind=4), intent(out) :: nsteps
+
+    open(newunit=tmp_unit, file=trim(mergertree_file), form='unformatted')
+    read(tmp_unit) nsteps
+
+  end subroutine read_mergertree_headers_1
+
+  !! Read the second part of the header. You have to call read_mergertree_headers_1 BEFORE
+  subroutine read_mergertree_headers_2(nb_of_halos, nb_of_subhalos, aexp, omega_t, age_univ, nsteps)
+    integer, intent(in) :: nsteps
+    integer, intent(out), dimension(nsteps)      :: nb_of_halos, nb_of_subhalos
+    real(kind=4), intent(out), dimension(nsteps) :: aexp, omega_t, age_univ
+    read(tmp_unit) nb_of_halos, nb_of_subhalos
+    read(tmp_unit) aexp
+    read(tmp_unit) omega_t
+    read(tmp_unit) age_univ
+  end subroutine read_mergertree_headers_2
+
+  !! Read the mergertree and return an array containing each halos parent
+  subroutine read_mergertree_parent_of (nhalos, nhalos_at_step, nsteps, halos_z0, parent)
+    use misc
+
+    integer, intent(in)  :: nhalos, nsteps
+    integer, intent(in), dimension(nsteps) :: nhalos_at_step
+
+    integer, intent(out), dimension(nhalos, nsteps) :: parent
+    integer, intent(out), dimension(nhalos_at_step(nsteps)) :: halos_z0
+
+    integer, dimension(nhalos) :: current_children
+    integer, dimension(nhalos) :: order
+
+    integer(kind=4), dimension(:), allocatable :: idfather
+    real(kind=4), dimension(:), allocatable :: mfather
+    integer :: i, step, nb_of_fathers, nb_of_sons, halo_id, imax, child
+
+    ! children_sorted = children
+
+    ! call quick_sort(children_sorted, order, nhalos)
+    ! print*, children, children_sorted, order
+    halos_z0 = 0
+    do step = 1, nsteps
+       do i = 1, nhalos_at_step(step)
+          call read_1(halo_id, nb_of_fathers)
+          if (step == nsteps) then
+             halos_z0(i) = halo_id
+          end if
+          allocate(idfather(nb_of_fathers), mfather(nb_of_fathers))
+          call read_2(nb_of_fathers, idfather, mfather)
+          call max_index(mfather, imax)
+
+          parent(halo_id, step) = idfather(imax)
+          deallocate(idfather, mfather)
+       end do
+    end do
+
+    close(tmp_unit)
+
+  end subroutine read_mergertree_parent_of
+
+  !! Read a mergertree file and compute the positions of each couple halo, step
+  !! parameter: halos, integer array of halos to find
+  !! parameter: steps, integer array that specify the step in which to find the halo
+  !! parameter: pos, vel, real arrays that gives each halo position and velocity
+  subroutine read_mergertree_positions (halos, steps, &
+       pos, vel,&
+       nhalos, nsteps)
+    integer, intent(in) :: nhalos, nsteps
+    integer, intent(in), dimension(nhalos) :: halos, steps
+    real(kind=8), intent(out), dimension(nhalos) :: pos, vel
+
+    integer :: halo_id, nb_of_father, step
+    do step = 1, nsteps
+       call read_1(halo_id, nb_of_father)
+       allocate(idfather(nb_of_fathers), mfather(nb_of_fathers))
+       call read_2(nb_of_fathers, idfather, mfather)
+       deallocate(idfather, mfather)
+    end do
+
+  end subroutine read_mergertree_positions
+
+  subroutine read_1 (halo_id, nb_of_fathers)
+    integer, intent(out) :: halo_id, nb_of_fathers
+    read(tmp_unit) halo_id
+
+    read(tmp_unit) ! bushid
+    read(tmp_unit) ! mystep
+    read(tmp_unit) ! leve, hosthalo, hostsub, nbsub, nextsub
+    read(tmp_unit) ! m
+    read(tmp_unit) ! macc
+    read(tmp_unit) ! px, py, pz
+    read(tmp_unit) ! vx, vy, vz
+    read(tmp_unit) ! Lx, Ly, Lz
+    read(tmp_unit) ! r, ra, rb, rc
+    read(tmp_unit) ! ek, ep, et
+    read(tmp_unit) ! spin
+
+    read(tmp_unit) nb_of_fathers
+
+  end subroutine read_1
+
+  subroutine read_2_dummy (nb_of_fathers)
+    integer, intent(in) :: nb_of_fathers
+    integer :: nb_of_sons
+    if(nb_of_fathers > 0)then
+       read(tmp_unit) !idfather
+       read(tmp_unit) !mfather
+    endif
+
+    read(tmp_unit) nb_of_sons
+    if(nb_of_sons>0)then
+       read(tmp_unit) !idson(1:nb_of_sons)
+    endif
+
+    read(tmp_unit) ! ??
+    read(tmp_unit) ! ??
+  end subroutine read_2_dummy
+
+  subroutine read_2 (nb_of_fathers, idfather, mfather)
+    integer, intent(in) :: nb_of_fathers
+    integer(kind=4), intent(out), dimension(nb_of_fathers) :: idfather
+    real(kind=4), intent(out), dimension(nb_of_fathers) :: mfather
+    integer :: nb_of_sons
+
+    if(nb_of_fathers > 0)then
+       read(tmp_unit) idfather
+       read(tmp_unit) mfather
+    endif
+    read(tmp_unit) nb_of_sons
+    if(nb_of_sons>0)then
+       ! allocate(idson(1:nb_of_sons))
+       read(tmp_unit) !idson(1:nb_of_sons)
+       ! deallocate(idson)
+    endif
+
+    read(tmp_unit) ! ??
+    read(tmp_unit) ! ??
+
+  end subroutine read_2
+
 end module io
