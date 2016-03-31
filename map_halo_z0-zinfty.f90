@@ -121,6 +121,7 @@ program sort_galaxy
 
   open(unit=10, file='out')
   print*, 'Saving file'
+  write(10, '(a, i)') 'nsteps', mt_nsteps
   write(10, '(3a10)') 'halo', 'parent', 'step'
   do i = 1, tmp_nhalos(mt_nsteps)
      write(10, '(3i10)') halos_z0(i), progenitor(i, 1), progenitor(i, 2)
@@ -128,6 +129,7 @@ program sort_galaxy
   close(10)
   open(unit=10, file="out.raw", form="unformatted")
   print*, "Saving raw file"
+  write(10) mt_nsteps, 3
   write(10) halos_z0, progenitor(i, 1), progenitor(i, 2)
   close(10)
 
