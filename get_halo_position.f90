@@ -11,31 +11,47 @@ program sort_galaxy
   ! List data
   !-------------------------------------
   real(kind=4), dimension(:,:), allocatable :: data_gal, data_associations, data_halo
-  integer :: ngal, nassoc, ndm_halo, gal_cols, assoc_cols, dm_halo_cols
+  integer                                   :: ngal, nassoc, ndm_halo, gal_cols, assoc_cols, dm_halo_cols
   !-------------------------------------
   ! Brick data
   !-------------------------------------
   real(kind=8), dimension(:, :), allocatable :: posDM, LDM
-  integer, dimension(:), allocatable :: idDM
-  real(kind=8), dimension(:), allocatable :: rvirDM, mDM, mvirDM, TvirDM, hlevel
-  type(INFOS_T) :: infos_start
+  integer, dimension(:), allocatable         :: idDM
+  real(kind=8), dimension(:), allocatable    :: rvirDM, mDM, mvirDM, TvirDM, hlevel
+  type(INFOS_T)                              :: infos
   type(MEMBERS_T), dimension(:), allocatable :: members
-  integer :: nbodies, nb_of_halos, nb_of_subhalos, nDM
-  real(kind=4) :: aexp_tmp, age_univ
+  integer                                    :: nbodies, nb_of_halos, nb_of_subhalos, nDM
+  real(kind=4)                               :: aexp_tmp, age_univ
   !-------------------------------------
   ! Merger tree data
   !-------------------------------------
-  integer,  allocatable, dimension(:) :: mt_nhalos, mt_nsubhalos
-  real(kind=4), dimension(:), allocatable  :: mt_aexp, mt_omega_t, mt_age_univ
-  real(kind=4), dimension(:, :), allocatable :: pos, vel, initial_pos
-  integer :: mt_nsteps, nsteps, nhalos
-  integer :: initial_halo_id, current_halo, parent_halo, istep, prev, father, step, max_nhalo
-  integer, dimension(:), allocatable :: tmp_nhalos, halos_z0
-  integer, dimension(:,:), allocatable :: parent, progenitor
+  ! integer,  allocatable, dimension(:)        :: mt_nhalos, mt_nsubhalos
+  ! real(kind=4), dimension(:), allocatable    :: mt_aexp, mt_omega_t, mt_age_univ, time
+  ! real(kind=4), dimension(:, :), allocatable :: mt_pos, mt_vel, initial_pos
+  ! integer                                    :: mt_nsteps, nsteps, nhalos
+  ! integer                                    :: initial_halo_id, current_halo, parent_halo, istep, prev, father, step, max_nhalo
+  ! integer, dimension(:), allocatable         :: tmp_nhalos, halos_z0
+  ! integer, dimension(:), allocatable         :: parent, parent_at_step
+  !-------------------------------------
+  ! Particle data
+  !-------------------------------------
+  integer                                    :: ndim, nparts
+  real(kind=8), dimension(:, :), allocatable :: pos, vel
+  integer                                    :: nstar, halo_found
+  integer,      dimension(:), allocatable    :: ids, order
+  integer, dimension(:, :), allocatable :: halo_to_cpu
+  real(kind=8), dimension(:), allocatable    :: m, birth_date
   !-------------------------------------
   ! Tmp variables
   !-------------------------------------
-  integer :: i
+  integer            :: i, cpu
+  integer            :: tmp_int
+  character(len=200) :: tmp_char
+  real               :: tmp_real
+  !-------------------------------------
+  ! random
+  !-------------------------------------
+  call random_seed()
 
   !-------------------------------------
   ! Read parameters
@@ -69,69 +85,70 @@ program sort_galaxy
   ! Read brick file
   !-------------------------------------
   ! print*, 'Reading brick file…'
-  ! call read_info_headers(info_file_start, infos_start)
-  ! call read_brick_header(brick_file, infos_start, nbodies, aexp_tmp, age_univ,&
-  !      nb_of_halos, nb_of_subhalos)
-  ! nDM = nb_of_halos + nb_of_subhalos
-  ! allocate(idDM(nDM))
-  ! allocate(posDM(infos_start%ndim, nDM))
-  ! allocate(rvirDM(nDM))
-  ! allocate(mDM(nDM))
-  ! allocate(mvirDM(nDM))
-  ! allocate(TvirDM(nDM))
-  ! allocate(hlevel(nDM))
-  ! allocate(LDM(infos_start%ndim, nDM))
-  ! allocate(members(nDM))
-  ! call read_brick_data(nDM, infos_start, .true., &
-  !      & mDM, posDM, rvirDM, mvirDM, TvirDM,&
-  !      & hlevel, LDM, idDM, members)
-  ! print*, '    …red!'
+  call read_info_headers(info_file_end, infos)
+  call read_brick_header(brick_file, infos, nbodies, aexp_tmp, age_univ,&
+       nb_of_halos, nb_of_subhalos)
+  nDM = nb_of_halos + nb_of_subhalos
+  allocate(idDM(nDM))
+  allocate(posDM(infos%ndim, nDM))
+  allocate(rvirDM(nDM))
+  allocate(mDM(nDM))
+  allocate(mvirDM(nDM))
+  allocate(TvirDM(nDM))
+  allocate(hlevel(nDM))
+  allocate(LDM(infos%ndim, nDM))
+  allocate(members(nDM))
+  allocate(halo_to_cpu(nDM, 3))
+  call read_brick_data(nDM, infos, .true., &
+       & mDM, posDM, rvirDM, mvirDM, TvirDM,&
+       & hlevel, LDM, idDM, members)
+  print*, '    …red!'
 
-  open(unit=10, file="lists/halo_z0_z100.out.bin", form="unformatted")
-  print*, "Reading raw file 'lists/halo_z0_z100.out.bin'…"
-  read(10) nsteps, nhalos
-  allocate(progenitor(nhalos, 2), halos_z0(nhalos))
-  read(10) halos_z0, progenitor(:, 1), progenitor(:, 2)
-  close(10)
-  print*, '     … red!'
+  halo_to_cpu = 0
+  do cpu = 1, infos%ncpu
+     write(tmp_char, '(i0.5)') cpu
+     tmp_char = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002/part_00002.out" // trim(tmp_char)
 
-  call read_mergertree_headers_1(mergertree_file, mt_nsteps)
-  allocate(mt_nhalos(nsteps), mt_nsubhalos(nsteps), mt_aexp(nsteps),&
-       mt_omega_t(nsteps), mt_age_univ(nsteps), tmp_nhalos(nsteps))
-  call read_mergertree_headers_2(mt_nhalos, mt_nsubhalos, mt_aexp, mt_omega_t, mt_age_univ,&
-       mt_nsteps)
+     call read_particle_header(trim(tmp_char), ndim, nparts)
+     allocate(pos(ndim, nparts), vel(ndim, nparts), ids(nparts), m(nparts), birth_date(nparts),&
+          order(nparts))
+     call read_particle_data(ndim, nparts, nstar, pos, vel, m, ids, birth_date)
 
-  tmp_nhalos = mt_nhalos + mt_nsubhalos
-  allocate(pos(nhalos, 3), vel(nhalos, 3), initial_pos(nhalos, 3))
+     call quick_sort(ids, order, nparts)
 
-  ! print*, 'Progen--------------'
-  ! print*, progenitor(:, 1)
-  ! print*, 'Step----------------'
-  ! print*, progenitor(:, 2)
-  print*, 'Read----------------'
-  print*, mt_age_univ
-  call read_mergertree_positions(progenitor(:, 1), progenitor(:, 2), &
-       pos, vel, &
-       tmp_nhalos, nhalos, nsteps)
+     halo_found = 0
+     !!$OMP PARALLEL DO
+     do i = 1, nDM
 
-  pos = pos*3.08d24/unit_l+0.5d0
-  do i = 1, nhalos
-     step = progenitor(i, 2)
-     initial_pos(i, :) = pos(i, :) +  vel(i, :) * (mt_age_univ(step) - mt_age_univ(1))
+        call random_number(tmp_real)
+        tmp_int = floor(tmp_real*members(i)%parts)
+        tmp_int = indexOf(members(i)%ids(tmp_int), ids)
+        if (halo_to_cpu(i, 3) > 0) then
+           cycle
+        else if (tmp_int > 0) then
+           if (halo_to_cpu(i, 1) > 0) then
+              if (halo_to_cpu(i, 2) > 0) then
+                 halo_to_cpu(i, 3) = cpu
+              else
+                 halo_to_cpu(i, 2) = cpu
+              end if
+           else
+              halo_to_cpu(i, 1) = cpu
+           end if
+           halo_found = halo_found + 1
+        end if
+     end do
+!!$OMP END PARALLEL DO
+     write(*, '(a3,x,i4,a1,i4,x,a,i5,x,a)') 'cpu', cpu, '/', infos%ncpu, ', found', halo_found, 'halos'
+
+     deallocate(pos, vel, ids, m, birth_date, order)
   end do
-  ! initial_pos = 0
-  open(unit=10, file='out.bin', form='unformatted')
-  ! write(10, *) nhalos, nsteps
-  ! write(10, *) pos
-  ! write(10, *) vel
-  write(10) pos ! the position is in MPc
-  write(10) vel ! the velocity is in km/s
-  write(10) mt_age_univ ! this is in Gyr
-  write(10) initial_pos(:, 1)
-  write(10) initial_pos(:, 2)
-  write(10) initial_pos(:, 3)
+
+  open(10, file='out')
+  do i = 1, nDM
+     write(10, *) idDM(i), halo_to_cpu(i, :)
+  end do
   close(10)
-  ! print*, pos, vel
 
 contains
   subroutine read_params ()
@@ -157,12 +174,12 @@ contains
     gal_list_filename = "lists/list_kingal_00782.dat"
     dm_halo_list_filename = "lists/list_halo.dat.bin"
     associations_filename = "lists/associated_halogal_782.dat.bin"
-    ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00032"
-    ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00761"
+    ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002"
+    ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00782"
     brick_file = "/data52/Horizon-AGN/TREE_DM_celldx2kpc_SC0.9r/tree_bricks782"
-    info_file_end = '/data52/Horizon-AGN/OUTPUT_DIR/output_00761/info_00761.txt'
-    info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00032/info_00032.txt'
-    halo_to_cpu_file = 'lists/halo_to_cpu.00032.raw.dat.bin'
+    info_file_end = '/data52/Horizon-AGN/OUTPUT_DIR/output_00782/info_00782.txt'
+    info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00002/info_00002.txt'
+    halo_to_cpu_file = 'lists/halo_to_cpu.00002.raw.dat.bin'
     mergertree_file = '/data33/dubois/H-AGN/MergerTree/TreeMaker_HAGN/tree.dat'
 
     do i = 1, n, 2
