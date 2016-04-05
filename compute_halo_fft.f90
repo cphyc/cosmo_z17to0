@@ -88,7 +88,7 @@ program sort_galaxy
   call read_list_data(nassoc, assoc_cols, data_associations)
   print*, 'Got', nassoc, 'associations in da pocket'
 
-  call cli%get(switch='--association-list', val=tmp_char)
+  call cli%get(switch='--halo-list', val=tmp_char)
   print*, ''
   print*, 'Reading file "' // trim(tmp_char) // '"'
   call read_list_header(trim(tmp_char), ndm_halo, dm_halo_cols)
@@ -101,11 +101,11 @@ program sort_galaxy
   !-------------------------------------
   call cli%get(switch='--info-file', val=tmp_char)
   print*, ''
-  print*, 'Reading brick file…'
+  print*, 'Reading brick file "' // trim(tmp_char) // '"…'
   call read_info_headers(tmp_char, infos)
 
   call cli%get(switch='--brick', val=tmp_char)
-  call read_brick_header(brick_file, infos, nbodies, aexp_tmp, age_univ,&
+  call read_brick_header(tmp_char, infos, nbodies, aexp_tmp, age_univ,&
        nb_of_halos, nb_of_subhalos)
   nDM = nb_of_halos + nb_of_subhalos
   allocate(idDM(nDM))
