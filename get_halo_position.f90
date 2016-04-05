@@ -46,10 +46,11 @@ program sort_galaxy
   ! Tmp variables
   !-------------------------------------
   integer            :: i, j, cpu
-  integer            :: tmp_int, unit
+  integer            :: tmp_int, unit, tmp_int2
   character(len=200) :: tmp_char
   real               :: tmp_real
   logical            :: tmp_bool
+  integer, dimension(NPARTICLE_TO_PROBE_HALO) :: tmp_arr
   !-------------------------------------
   ! random
   !-------------------------------------
@@ -108,11 +109,12 @@ program sort_galaxy
   print*, '    …red!'
 
   halo_to_cpu = 0
+  tmp_int2 = 0
   !$OMP PARALLEL DO PRIVATE(halo_found, tmp_char, i, j, tmp_real, tmp_int, ndim, nparts, unit) &
-  !$OMP PRIVATE(order, pos, vel, ids, m, birth_date) SCHEDULE(guided, 10)
+  !$OMP PRIVATE(order, pos, vel, ids, m, birth_date, tmp_arr) SCHEDULE(guided, 1)
   do cpu = 1, infos%ncpu
      write(tmp_char, '(i0.5)') cpu
-     tmp_char = "/data52/Horizon-AGN/OUTPUT_DIR/output_00782/part_00782.out" // trim(tmp_char)
+     tmp_char = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002/part_00002.out" // trim(tmp_char)
 
      call read_particle_header(trim(tmp_char), ndim, nparts, unit)
      allocate(pos(ndim, nparts), vel(ndim, nparts), ids(nparts), m(nparts), birth_date(nparts))
@@ -131,17 +133,24 @@ program sort_galaxy
            call random_number(tmp_real)
            tmp_int = ceiling(tmp_real*members(i)%parts)
            ! get the position of the random particle in the ids
-           tmp_int = indexOf(members(i)%ids(tmp_int), ids)
-           if (tmp_int > 0) then
-              !$OMP CRITICAL
-              call fill(halo_to_cpu(i, :), cpu, halo_found)
-              !$OMP END CRITICAL
+           tmp_arr(j) = indexOf(members(i)%ids(tmp_int), ids)
+           if (tmp_arr(j) > 0) then
               exit
            end if
         end do
+        !$OMP CRITICAL
+        do j = 1, NPARTICLE_TO_PROBE_HALO
+           if (tmp_arr(j) > 0) then
+              call fill(halo_to_cpu(i, :), cpu, halo_found)
+              exit
+           end if
+        end do
+        !$OMP END CRITICAL
      end do
-
-     write(*, '(a3,x,i4,a1,i4,x,a,i5,x,a)') 'cpu', cpu, '/', infos%ncpu, ', found', halo_found, 'halos'
+     !$OMP ATOMIC
+     tmp_int2 = tmp_int2 + 1
+     write(*, '(i4,  a,  i4,         a,          i4,  a,x,        i5,x,       a)') &
+          tmp_int2, '/', infos%ncpu, ' (cpu n°', cpu ,'), ', halo_found, 'halos found'
      deallocate(ids)
   end do
   !$OMP END PARALLEL DO
