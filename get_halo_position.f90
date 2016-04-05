@@ -7,6 +7,7 @@ program sort_galaxy
   ! Parameters
   !-------------------------------------
   character(len=200) :: ramses_output_end, ramses_output_start, gal_list_filename, associations_filename, dm_halo_list_filename, brick_file, info_file_end, info_file_start, outfile, halo_to_cpu_file, mergertree_file
+  integer :: param_from, param_to
   integer, parameter :: NPARTICLE_TO_PROBE_HALO = 50, NCPU_PER_HALO = 10
   !-------------------------------------
   ! List data
@@ -111,9 +112,14 @@ program sort_galaxy
   allocate(tmp_arr(NPARTICLE_TO_PROBE_HALO))
   halo_to_cpu = 0
   tmp_int2 = 0
+
+  if (param_to < 0) then
+     param_to = infos%ncpu + param_to + 1
+  end if
+
   !$OMP PARALLEL DO PRIVATE(halo_found, tmp_char, i, j, tmp_real, tmp_int, ndim, nparts, unit) &
   !$OMP PRIVATE(order, pos, vel, ids, m, birth_date, tmp_arr) SCHEDULE(guided, 1)
-  do cpu = 1, 10!infos%ncpu
+  do cpu = param_from, param_to
      write(tmp_char, '(i0.5)') cpu
      tmp_char = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002/part_00002.out" // trim(tmp_char)
 
@@ -139,14 +145,12 @@ program sort_galaxy
               exit
            end if
         end do
-        !$OMP CRITICAL
         do j = 1, NPARTICLE_TO_PROBE_HALO
            if (tmp_arr(j) > 0) then
               call fill(halo_to_cpu(i, :), cpu, halo_found)
               exit
            end if
         end do
-        !$OMP END CRITICAL
      end do
      !$OMP ATOMIC
      tmp_int2 = tmp_int2 + 1
@@ -158,7 +162,8 @@ program sort_galaxy
   deallocate(tmp_arr)
 
   allocate(tmp_arr(NCPU_PER_HALO))
-  open(10, file='out')
+  write(tmp_char, '(a, i0.5, a, i0.5)') "out", param_from, '-', param_to
+  open(10, file=tmp_char)
   do i = 1, nDM
      tmp_arr = halo_to_cpu(i, :)
      write(10, *) idDM(i), tmp_arr
@@ -198,6 +203,9 @@ contains
     halo_to_cpu_file = 'lists/halo_to_cpu.00002.raw.dat.bin'
     mergertree_file = '/data33/dubois/H-AGN/MergerTree/TreeMaker_HAGN/tree.dat'
 
+    param_from = 1
+    param_to = -1
+
     do i = 1, n, 2
        call getarg(i, opt)
        if (i == n) then
@@ -225,6 +233,12 @@ contains
           info_file_end = trim(arg)
        case ('-out')
           outfile = trim(arg)
+       case ('-fro')
+          tmp_char = trim(arg)
+          read(tmp_char, '(i10)') param_from
+       case ('-to')
+          tmp_char = trim(arg)
+          read(tmp_char, '(i10)') param_to
        case default
           print '("unknown option ",a2," ignored")', opt
        end select
