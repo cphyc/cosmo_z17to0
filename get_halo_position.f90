@@ -50,7 +50,7 @@ program sort_galaxy
   character(len=200) :: tmp_char
   real               :: tmp_real
   logical            :: tmp_bool
-  integer, dimension(NPARTICLE_TO_PROBE_HALO) :: tmp_arr
+  integer, dimension(:), allocatable :: tmp_arr
   !-------------------------------------
   ! random
   !-------------------------------------
@@ -108,11 +108,12 @@ program sort_galaxy
        & hlevel, LDM, idDM, members)
   print*, '    …red!'
 
+  allocate(tmp_arr(NPARTICLE_TO_PROBE_HALO))
   halo_to_cpu = 0
   tmp_int2 = 0
   !$OMP PARALLEL DO PRIVATE(halo_found, tmp_char, i, j, tmp_real, tmp_int, ndim, nparts, unit) &
   !$OMP PRIVATE(order, pos, vel, ids, m, birth_date, tmp_arr) SCHEDULE(guided, 1)
-  do cpu = 1, infos%ncpu
+  do cpu = 1, 10!infos%ncpu
      write(tmp_char, '(i0.5)') cpu
      tmp_char = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002/part_00002.out" // trim(tmp_char)
 
@@ -154,12 +155,16 @@ program sort_galaxy
      deallocate(ids)
   end do
   !$OMP END PARALLEL DO
+  deallocate(tmp_arr)
 
+  allocate(tmp_arr(NCPU_PER_HALO))
   open(10, file='out')
   do i = 1, nDM
-     write(10, *) idDM(i), halo_to_cpu(i, :)
+     tmp_arr = halo_to_cpu(i, :)
+     write(10, *) idDM(i), tmp_arr
   end do
   close(10)
+  deallocate(tmp_arr)
 
 contains
   subroutine read_params ()
