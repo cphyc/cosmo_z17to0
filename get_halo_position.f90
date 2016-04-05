@@ -7,6 +7,7 @@ program sort_galaxy
   ! Parameters
   !-------------------------------------
   character(len=200) :: ramses_output_end, ramses_output_start, gal_list_filename, associations_filename, dm_halo_list_filename, brick_file, info_file_end, info_file_start, outfile, halo_to_cpu_file, mergertree_file
+  integer, parameter :: NPARTICLE_TO_PROBE_HALO = 50, NCPU_PER_HALO = 10
   !-------------------------------------
   ! List data
   !-------------------------------------
@@ -39,15 +40,16 @@ program sort_galaxy
   real(kind=8), dimension(:, :), allocatable :: pos, vel
   integer                                    :: nstar, halo_found
   integer,      dimension(:), allocatable    :: ids, order
-  integer, dimension(:, :), allocatable :: halo_to_cpu
+  integer, dimension(:, :), allocatable      :: halo_to_cpu
   real(kind=8), dimension(:), allocatable    :: m, birth_date
   !-------------------------------------
   ! Tmp variables
   !-------------------------------------
-  integer            :: i, cpu
-  integer            :: tmp_int
+  integer            :: i, j, cpu
+  integer            :: tmp_int, unit
   character(len=200) :: tmp_char
   real               :: tmp_real
+  logical            :: tmp_bool
   !-------------------------------------
   ! random
   !-------------------------------------
@@ -84,7 +86,8 @@ program sort_galaxy
   !-------------------------------------
   ! Read brick file
   !-------------------------------------
-  ! print*, 'Reading brick file…'
+  print*, ''
+  print*, 'Reading brick file…'
   call read_info_headers(info_file_end, infos)
   call read_brick_header(brick_file, infos, nbodies, aexp_tmp, age_univ,&
        nb_of_halos, nb_of_subhalos)
@@ -98,51 +101,50 @@ program sort_galaxy
   allocate(hlevel(nDM))
   allocate(LDM(infos%ndim, nDM))
   allocate(members(nDM))
-  allocate(halo_to_cpu(nDM, 3))
+  allocate(halo_to_cpu(nDM, NCPU_PER_HALO))
   call read_brick_data(nDM, infos, .true., &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LDM, idDM, members)
   print*, '    …red!'
 
   halo_to_cpu = 0
+  !$OMP PARALLEL DO PRIVATE(halo_found, tmp_char, i, j, tmp_real, tmp_int, ndim, nparts, unit) &
+  !$OMP PRIVATE(order, pos, vel, ids, m, birth_date) SCHEDULE(guided, 10)
   do cpu = 1, infos%ncpu
      write(tmp_char, '(i0.5)') cpu
-     tmp_char = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002/part_00002.out" // trim(tmp_char)
+     tmp_char = "/data52/Horizon-AGN/OUTPUT_DIR/output_00782/part_00782.out" // trim(tmp_char)
 
-     call read_particle_header(trim(tmp_char), ndim, nparts)
-     allocate(pos(ndim, nparts), vel(ndim, nparts), ids(nparts), m(nparts), birth_date(nparts),&
-          order(nparts))
-     call read_particle_data(ndim, nparts, nstar, pos, vel, m, ids, birth_date)
+     call read_particle_header(trim(tmp_char), ndim, nparts, unit)
+     allocate(pos(ndim, nparts), vel(ndim, nparts), ids(nparts), m(nparts), birth_date(nparts))
+     call read_particle_data(ndim, nparts, unit, nstar, pos, vel, m, ids, birth_date)
+     deallocate(pos, vel, m, birth_date)
 
+     allocate(order(nparts))
      call quick_sort(ids, order, nparts)
+     deallocate(order)
 
      halo_found = 0
-     !!$OMP PARALLEL DO
+
      do i = 1, nDM
-
-        call random_number(tmp_real)
-        tmp_int = floor(tmp_real*members(i)%parts)
-        tmp_int = indexOf(members(i)%ids(tmp_int), ids)
-        if (halo_to_cpu(i, 3) > 0) then
-           cycle
-        else if (tmp_int > 0) then
-           if (halo_to_cpu(i, 1) > 0) then
-              if (halo_to_cpu(i, 2) > 0) then
-                 halo_to_cpu(i, 3) = cpu
-              else
-                 halo_to_cpu(i, 2) = cpu
-              end if
-           else
-              halo_to_cpu(i, 1) = cpu
+        ! Pick 10 random particles and see if it's in the CPU
+        do j = 1, NPARTICLE_TO_PROBE_HALO
+           call random_number(tmp_real)
+           tmp_int = ceiling(tmp_real*members(i)%parts)
+           ! get the position of the random particle in the ids
+           tmp_int = indexOf(members(i)%ids(tmp_int), ids)
+           if (tmp_int > 0) then
+              !$OMP CRITICAL
+              call fill(halo_to_cpu(i, :), cpu, halo_found)
+              !$OMP END CRITICAL
+              exit
            end if
-           halo_found = halo_found + 1
-        end if
+        end do
      end do
-!!$OMP END PARALLEL DO
-     write(*, '(a3,x,i4,a1,i4,x,a,i5,x,a)') 'cpu', cpu, '/', infos%ncpu, ', found', halo_found, 'halos'
 
-     deallocate(pos, vel, ids, m, birth_date, order)
+     write(*, '(a3,x,i4,a1,i4,x,a,i5,x,a)') 'cpu', cpu, '/', infos%ncpu, ', found', halo_found, 'halos'
+     deallocate(ids)
   end do
+  !$OMP END PARALLEL DO
 
   open(10, file='out')
   do i = 1, nDM
@@ -215,5 +217,24 @@ contains
     end do
 
   end subroutine read_params
+
+  subroutine fill(array, val, counter)
+    integer, intent(in) :: val
+    integer, intent(inout), dimension(:) :: array
+
+    integer, intent(out) :: counter
+    integer :: i
+
+    do i = 1, size(array)
+       if (array(i) == val) then
+          exit
+       else if (array(i)  == 0) then
+          counter = counter + 1
+          array(i) = val
+          exit
+       end if
+    end do
+
+  end subroutine fill
 
 end program sort_galaxy
