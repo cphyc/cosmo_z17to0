@@ -1,0 +1,21 @@
+[modes]
+modes=dist debug
+
+[common-variables]
+$cflags=-c
+$lflags=-qopenmp
+
+[dist]
+help=Compile for running
+compiler=intel
+cflags=$cflags -DBIG_RUN -Ofast -fast -free -O0 -cpp -qopenmp -xHost -parallel
+lflags=$lflags
+ext_lib=flap
+lib_dir=./third_party/FLAP/static/
+include=./third_party/FLAP/static/mod/
+
+[debug]
+help=Compile for debugging
+compiler=intel
+cflags=$cflags -i4 -r8 -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu
+lflags=$lflags
