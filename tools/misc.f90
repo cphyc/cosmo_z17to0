@@ -88,7 +88,7 @@ contains
 
   end subroutine hilbert3D
 
-  subroutine quick_sort(list_unsorted, order, list, n)
+  subroutine quick_sort(list, order, n)
     ! quick sort routine from:
     ! brainerd, w.s., goldberg, c.h. & adams, j.c. (1990) "programmer's guide to
     ! fortran 90", mcgraw-hill  isbn 0-07-000248-7, pages 149-150.
@@ -96,14 +96,12 @@ contains
     ! the positions of the elements in the original order.
     integer, parameter::i8b = 8
 
-    integer :: n
-    integer(i8b), dimension (1:n), intent(in)  :: list_unsorted
-    integer, dimension (1:n), intent(out)      :: order, list
+    integer, intent(in) :: n
+    integer, dimension (n), intent(inout)  :: list
+    integer, dimension (n), intent(out)    :: order
 
     ! local variable
     integer :: i
-
-    list = list_unsorted
 
     do i = 1, n
        order(i) = i
@@ -181,6 +179,56 @@ contains
     end subroutine interchange_sort
   end subroutine quick_sort
 
+  recursive subroutine rquick_sort(A)
+    real, intent(in out), dimension(:) :: A
+    integer :: iq
+
+    if(size(A) > 1) then
+       call Partition(A, iq)
+       call rquick_sort(A(:iq-1))
+       call rquick_sort(A(iq:))
+    endif
+
+  contains
+    subroutine Partition(A, marker)
+      real, intent(in out), dimension(:) :: A
+      integer, intent(out) :: marker
+      integer :: i, j
+      real :: temp
+      real :: x      ! pivot point
+      x = A(1)
+      i= 0
+      j= size(A) + 1
+
+      do
+         j = j-1
+         do
+            if (A(j) <= x) exit
+            j = j-1
+         end do
+         i = i+1
+         do
+            if (A(i) >= x) exit
+            i = i+1
+         end do
+         if (i < j) then
+            ! exchange A(i) and A(j)
+            temp = A(i)
+            A(i) = A(j)
+            A(j) = temp
+         elseif (i == j) then
+            marker = i+1
+            return
+         else
+            marker = i
+            return
+         endif
+      end do
+
+    end subroutine Partition
+
+  end subroutine rquick_sort
+
   subroutine get_cpu_list(X0, X1, levelmax, bound_key, cpu_list, ncpu, ndim)
     integer, intent(in)                          :: ncpu, ndim, levelmax
     real(kind = 8), dimension(1:ndim), intent(in):: X0, X1
@@ -243,8 +291,8 @@ contains
        endif
        bounding_min(i) = (order_min(1))*dkey
        bounding_max(i) = (order_min(1)+1.0D0)*dkey
-
     end do
+
     cpu_min = 0; cpu_max = 0
     do impi = 1, ncpu
        do i = 1, ndom
@@ -272,5 +320,127 @@ contains
 
     ! deallocate(cpu_read)
   end subroutine get_cpu_list
+
+  function indexOf(element, array)
+    ! Please note that array has to be sorted
+    integer :: indexOf
+    integer, intent(in) :: element
+    integer, intent(in), dimension(:) :: array
+
+    integer :: left, right, middle
+    left = lbound(array, 1)
+    right = ubound(array, 1)
+    middle = (left + right) / 2
+
+    indexOf = -1
+
+    if (array(left) > element .or. array(right) < element) then
+       return
+    end if
+    do while (element /= array(middle))
+       if (left > right) then
+          return
+       end if
+
+       if (element > array(middle)) then
+          left = middle + 1
+       else if (element < array(middle)) then
+          right = middle - 1
+       end if
+       middle = (left + right) / 2
+
+    end do
+
+    indexOf = middle
+
+  end function indexOf
+
+  subroutine max_index (array, imax)
+    real(kind=4), intent(in), dimension(:) :: array
+    integer, intent(out) :: imax
+    real :: maxval
+    integer :: i
+    imax = lbound(array, 1)
+    maxval = array(imax)
+    do i = lbound(array, 1), ubound(array, 1)
+       if (array(i) > maxval) then
+          imax = i
+          maxval = array(i)
+       end if
+    end do
+  end subroutine max_index
+
+  function median (A, n, m)
+    integer, intent(in) :: n, m
+    real, dimension(n, m), intent(in) :: A
+
+    real, dimension(m) :: A_copy
+
+    integer :: i
+    real, dimension(n) :: median
+
+    do i = 1, n
+       A_copy = A(i, :)
+       call rquick_sort(A_copy)
+
+       median(i) = A_copy(m/ 2)
+    end do
+  end function median
+
+  ! Return an array containing unique data from array
+  subroutine unique (array, u_array)
+    integer, intent(in), dimension(:) :: array
+    integer, intent(out), dimension(size(array)) :: u_array
+
+    integer, dimension(size(array)) :: order, tmp_array
+    integer :: ptr, i
+
+    tmp_array = array
+    call quick_sort(tmp_array, order, size(array))
+
+    u_array = 0
+    u_array(1) = tmp_array(1)
+
+    ptr = 1 ! pointer on unique array
+    do i = 1, size(array)
+       if (u_array(ptr) /= tmp_array(i)) then
+          ptr = ptr + 1
+          u_array(ptr) = tmp_array(i)
+       end if
+    end do
+
+  end subroutine unique
+
+  subroutine parse_params (cli)
+    use flap, only : command_line_interface
+
+    type(command_line_interface), intent(out) :: cli
+
+    call cli%init(progname='compute_halo_fft')
+    call cli%add(switch='--min-mass', switch_ab='-minm', help='Minimum mass', act='store',&
+         def='0')
+    call cli%add(switch='--max-mass', switch_ab='-maxm', help='Maximum mass', act='store',&
+         def='0')
+    call cli%add(switch='--gal-list', help='List of galaxies', act='store', &
+         def='lists/list_kingal_00782.dat')
+    call cli%add(switch='--halo-list', help='List of dark matter halo', act='store', &
+         def='lists/list_halo.dat.bin')
+    call cli%add(switch='--association-list', help='List of association between galaxy and halo', &
+         act='store', def='lists/associated_halogal_782.dat.bin')
+    call cli%add(switch='--info-file', help='Information file about simulation', &
+         act='store', def='/data52/Horizon-AGN/OUTPUT_DIR/output_00782/info_00782.txt')
+    call cli%add(switch='--output-end', help='Path for latest output of simulation', &
+         act='store', def='/data52/Horizon-AGN/OUTPUT_DIR/output_00782/')
+    call cli%add(switch='--output-start', help='Path for first output of simulation', &
+         act='store', def='/data52/Horizon-AGN/OUTPUT_DIR/output_00002/')
+    call cli%add(switch='--brick', help='Path for brick file that contains the halos', &
+         act='store', def='/data52/Horizon-AGN/TREE_DM_celldx2kpc_SC0.9r/tree_bricks782')
+    call cli%add(switch='--cpu-from', help='First cpu to use', &
+         act='store', def='0')
+    call cli%add(switch='--cpy-to', help='Last cpu to use', &
+         act='store', def='0')
+
+  end subroutine parse_params
+
 
 end module misc
