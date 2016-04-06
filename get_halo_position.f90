@@ -246,23 +246,4 @@ contains
 
   end subroutine read_params
 
-  subroutine fill(array, val, counter)
-    integer, intent(in) :: val
-    integer, intent(inout), dimension(:) :: array
-
-    integer, intent(out) :: counter
-    integer :: i
-
-    do i = 1, size(array)
-       if (array(i) == val) then
-          exit
-       else if (array(i)  == 0) then
-          counter = counter + 1
-          array(i) = val
-          exit
-       end if
-    end do
-
-  end subroutine fill
-
 end program sort_galaxy
