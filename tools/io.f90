@@ -111,6 +111,34 @@ contains
     end if
   end subroutine assert_infos
 
+  !! Wrapper around particle reader
+  subroutine read_particle(basepath, output, cpu, nstar, pos, vel, m, ids, birth_date, ndim, nparts)
+    character(len=*), intent(in) :: basepath
+    integer, intent(in)          :: output, cpu
+
+    real(kind=8), dimension(:, :), intent(out), allocatable :: pos, vel
+    integer, intent(out)                                    :: nstar, ndim, nparts
+    integer,      dimension(:), intent(out), allocatable    :: ids
+    real(kind=8), dimension(:), intent(out), allocatable    :: m, birth_date
+
+    character(len=10)  :: tmp_char1, tmp_char2
+    character(len=100) :: path
+    integer            :: unit
+
+    write(tmp_char1, '(i0.5)') output
+    write(tmp_char2, '(i0.5)') cpu
+
+    path = trim(basepath) // '/output_' // trim(tmp_char1) // '/part_' // trim(tmp_char1) &
+         // '.out' // trim(tmp_char2)
+    call read_particle_header(path, ndim, nparts, unit)
+    allocate(pos(ndim, nparts))
+    allocate(vel(ndim, nparts))
+    allocate(ids(nparts))
+    allocate(m(nparts))
+    allocate(birth_date(nparts))
+    call read_particle_data(ndim, nparts, unit, nstar, pos, vel, m, ids, birth_date)
+
+  end subroutine read_particle
   !! Read particle file header, returning the number of particules and the number of dimensions
   subroutine read_particle_header (filename, ndim, nparts, tmp_unit)
     character(len=*), intent(in) :: filename
