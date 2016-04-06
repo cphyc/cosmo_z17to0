@@ -5,17 +5,22 @@ modes=dist debug
 $cflags=-c
 $lflags= -parallel
 
+[template-dir]
+mod_dir=./mod/
+build_dir=./build/
+exec_dir=./bin/
+
 [dist]
+template=template-dir
 help=Compile for running
 compiler=intel
 cflags=$cflags -DBIG_RUN -Ofast -fast -free -O0 -cpp -qopenmp
-lflags=$lflags -mkl=parallel
-ext_lib=flap
-lib_dir=./third_party/FLAP/static/
-include=./third_party/FLAP/static/mod/
+lflags=$lflags -mkl=parallel -qopenmp
+jobs=4
 
 [debug]
+template=template-dir
 help=Compile for debugging
 compiler=intel
-cflags=$cflags -i4 -r8 -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu
+cflags=$cflags -i4 -r8 -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs
 lflags=$lflags -mkl=sequential
