@@ -1,8 +1,34 @@
 import _tools
 import pandas as pd
 import os
+from scipy.io import FortranFile
+import numpy as np
+import itertools
+
 io = _tools.io
 misc = _tools.misc
+
+class Indexable(object):
+
+    def __init__(self, it):
+        self.it = iter(it)
+        self.already_computed = []
+
+    def __iter__(self):
+        for elt in self.it:
+            self.already_computed.append(elt)
+            yield elt
+
+    def __getitem__(self, index):
+        try:
+            max_idx = index.stop
+        except AttributeError:
+            max_idx = index
+        n = max_idx - len(self.already_computed) + 1
+        if n > 0:
+            self.already_computed.extend(itertools.islice(self.it, n))
+        return self.already_computed[index]
+
 
 def check_filename(fun):
     ''' Wrapper that takes the first argument of the function call and asserts
@@ -11,7 +37,7 @@ def check_filename(fun):
         if not os.path.isfile(filename):
             raise IOError('No such file or directory: \'{}\''.format(filename))
         else:
-            fun(filename, *args, **kwargs)
+            return fun(filename, *args, **kwargs)
     return wrapped
 
 @check_filename
@@ -24,10 +50,8 @@ def read_particles_wrap(filename):
     --------
     ndim, nparts, nstar, data
     '''
-    if not os.isdir(filename):
-        raise IOError('No such file or directory: \'{}\''.format(filename))
     ndim, nparts = _tools.io.read_particle_header(filename)
-    nstar, x, y, z, vx, vy, vz, mass, ids, bd = _tools.io.read_particle_data(ndim, nparts)
+    nstar, [x, y, z], [vx, vy, vz], mass, ids, bd = _tools.io.read_particle_data(ndim, nparts)
     data = pd.DataFrame({
         'x': x,
         'y': y,
@@ -53,14 +77,44 @@ def read_brick_wrap(filename, dm_type=True):
     -------
     res: pandas.DataFrame containing all the information
     '''
-    if _tools.io.assert_infos() > 0:
-        return
-    nbodies, aexp, age_univ, nb_of_halos, nb_of_subhalos = _tools.io.read_brick_header(filename)
-    nDM = nb_of_halos + nb_of_subhalos
-    res = pd.DataFrame(_tools.io.read_brick_data(nDM, dm_type),
-                       columns=["mdm", "xdm", "ydm", "zdm", "rvirdm", "mvirdm",
-                                "tvirdm", "hlevel", "lxdm", "lydm", "lzdm", "iddm"])
-    return res
+    def tmp():
+        ff = FortranFile(filename)
+        h = {}
+        h["nbodies"] = ff.read_ints()
+        h["massp"] = ff.read_ints()
+        h["aexp"] = ff.read_reals(dtype=np.int32)
+        h["omega_t"] = ff.read_reals(dtype=np.int32)
+        h["age_univ"] = ff.read_reals(dtype=np.int32)
+        h["n_halos"], h["n_subhalos"] = ff.read_ints()
+
+        for i in range(h["n_halos"] + h["n_subhalos"]):
+            infos = {
+                "header": h
+            }
+            infos["nparts"] = ff.read_ints()
+            infos["members"] = ff.read_ints()
+            infos["idh"] = ff.read_ints()
+            infos["timestep"] = ff.read_ints()
+            infos["mylevel"], infos["hosthalo"], infos["hostsub"], infos["nbsub"], infos["nextsub"] = ff.read_ints()
+
+            infos["mhalo"] = ff.read_reals(dtype=np.int32)
+            infos["pos"] = ff.read_reals(dtype=np.int32)
+            infos["speed"] = ff.read_reals(dtype=np.int32)
+            infos["L"] = ff.read_reals(dtype=np.int32)
+            infos["r"], infos["a"], infos["b"], infos["c"] = ff.read_reals(dtype=np.int32)
+            infos["ek"], infos["ep"], infos["et"] = ff.read_reals(dtype=np.int32)
+            infos["spin"] = ff.read_reals(dtype=np.int32)
+            if not dm_type:
+                ff.read_reals()
+            infos["rvir"],infos["mvir"], infos["tvir"], infos["cvel"] = ff.read_reals(dtype=np.int32)
+            ff.read_reals()
+            if not dm_type:
+                infos["npoints"] = ff.read_ints()
+                infos["rdum"] = ff.read_reals(dtype=np.int32)
+                infos["density"] = ff.read_reals(dtype=np.int32)
+
+            yield infos
+    return Indexable(tmp())
 
 @check_filename
 def read_info_wrap(filename):
