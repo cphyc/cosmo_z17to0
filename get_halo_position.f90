@@ -8,9 +8,12 @@ program sort_galaxy
   !-------------------------------------
   ! Parameters
   !-------------------------------------
-  character(len=200) :: ramses_output_end, ramses_output_start, gal_list_filename, associations_filename, dm_halo_list_filename, brick_file, info_file_end, info_file_start, outfile, halo_to_cpu_file, mergertree_file
-  integer :: param_from, param_to
-  integer, parameter :: NPARTICLE_TO_PROBE_HALO = 50, NCPU_PER_HALO = 10
+  character(len=200) :: ramses_output_end, ramses_output_start, gal_list_filename, &
+       associations_filename, dm_halo_list_filename, brick_file, info_file,&
+       outfile, halo_to_cpu_file, mergertree_file
+  integer            :: param_from, param_to
+  integer, parameter :: NCPU_PER_HALO = 10
+  integer            :: nparticle_to_probe_halo
 
   type(command_line_interface) :: cli
 
@@ -74,6 +77,10 @@ program sort_galaxy
   call cli%get(switch='--gal-list', val=gal_list_filename)
   call cli%get(switch='--halo-list', val=dm_halo_list_filename)
   call cli%get(switch='--association-list', val=associations_filename)
+  call cli%get(switch='--brick', val=brick_file)
+  call cli%get(switch='--info-file', val=info_file)
+  call cli%get(swithc='--n-probe-particle', val=nparticle_to_probe_halo)
+  print*, param_min_m
 
   !-------------------------------------
   ! Read lists
@@ -103,7 +110,7 @@ program sort_galaxy
   !-------------------------------------
   print*, ''
   print*, 'Reading brick file…'
-  call read_info_headers(info_file_end, infos)
+  call read_info_headers(info_file, infos)
   call read_brick_header(brick_file, infos, nbodies, aexp_tmp, age_univ,&
        nb_of_halos, nb_of_subhalos)
   nDM = nb_of_halos + nb_of_subhalos
@@ -122,7 +129,7 @@ program sort_galaxy
        & hlevel, LDM, idDM, members)
   print*, '    …red!'
 
-  allocate(tmp_arr(NPARTICLE_TO_PROBE_HALO))
+  allocate(tmp_arr(nparticle_to_probe_halo))
   halo_to_cpu = 0
   tmp_int2 = 0
 
@@ -152,7 +159,7 @@ program sort_galaxy
            cycle
         end if
         ! Pick 10 random particles and see if it's in the CPU
-        do j = 1, NPARTICLE_TO_PROBE_HALO
+        do j = 1, nparticle_to_probe_halo
            call random_number(tmp_real)
            tmp_int = ceiling(tmp_real*members(i)%parts)
            ! get the position of the random particle in the ids
@@ -161,7 +168,7 @@ program sort_galaxy
               exit
            end if
         end do
-        do j = 1, NPARTICLE_TO_PROBE_HALO
+        do j = 1, nparticle_to_probe_halo
            if (tmp_arr(j) > 0) then
               call fill(halo_to_cpu(i, :), cpu, halo_found)
               exit
@@ -186,7 +193,7 @@ program sort_galaxy
   tmp_arr = maxval(halo_to_cpu, 1)
   do i = 1, NCPU_PER_HALO
      if (tmp_arr(i) == 0) then
-        tmp_int = i
+        tmp_int = i-1
         exit
      end if
   end do
@@ -200,7 +207,7 @@ program sort_galaxy
   write(10, *) nDM, tmp_int
   do i = 1, nDM
      tmp_arr = halo_to_cpu(i, :)
-     write(10, *) idDM(i), tmp_arr(:tmp_int)
+     write(10, '(i10,100i6)') idDM(i), tmp_arr(:tmp_int)
   end do
   close(10)
   deallocate(tmp_arr)
@@ -234,7 +241,7 @@ contains
   !   ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002"
   !   ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00782"
   !   brick_file = "/data52/Horizon-AGN/TREE_DM_celldx2kpc_SC0.9r/tree_bricks782"
-  !   info_file_end = '/data52/Horizon-AGN/OUTPUT_DIR/output_00782/info_00782.txt'
+  !   info_file = '/data52/Horizon-AGN/OUTPUT_DIR/output_00782/info_00782.txt'
   !   info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00002/info_00002.txt'
   !   halo_to_cpu_file = 'lists/halo_to_cpu.00002.raw.dat.bin'
   !   mergertree_file = '/data33/dubois/H-AGN/MergerTree/TreeMaker_HAGN/tree.dat'
@@ -266,7 +273,7 @@ contains
   !      case('-ifs')
   !         info_file_start = trim(arg)
   !      case('-ife')
-  !         info_file_end = trim(arg)
+  !         info_file = trim(arg)
   !      case ('-out')
   !         outfile = trim(arg)
   !      case ('-fro')
