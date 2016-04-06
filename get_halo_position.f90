@@ -67,7 +67,7 @@ program sort_galaxy
   !-------------------------------------
   print*, 'Reading file "' // trim(gal_list_filename) // '"'
   call read_list_header(trim(gal_list_filename), ngal, gal_cols)
-  allocate(data_gal(ngal, gal_cols+1))
+  allocate(data_gal(ngal, gal_cols))
   call read_list_data(ngal, gal_cols, data_gal)
   print*, 'Got', ngal, 'galaxies in da pocket'
 
