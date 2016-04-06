@@ -420,7 +420,7 @@ contains
     call cli%add(switch='--min-mass', switch_ab='-minm', help='Minimum mass', act='store',&
          def='0')
     call cli%add(switch='--max-mass', switch_ab='-maxm', help='Maximum mass', act='store',&
-         def='0')
+         def='1e100')
     call cli%add(switch='--gal-list', help='List of galaxies', act='store', &
          def='lists/list_kingal_00782.dat')
     call cli%add(switch='--halo-list', help='List of dark matter halo', act='store', &
@@ -439,6 +439,10 @@ contains
          act='store', def='1')
     call cli%add(switch='--cpu-to', help='Last cpu to use', &
          act='store', def='4096')
+    call cli%add(switch='--halo-to-cpu', help='Halo to cpu list, binary', &
+         act='store', def='lists/halo_to_cpu.00002.m<1e12.dat.bin')
+    call cli%add(switch='--n-probe-particle', help='When using random particles, number of random particle to pick.', &
+         act='store', def='50')
 
   end subroutine parse_params
 
