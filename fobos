@@ -2,13 +2,13 @@
 modes=dist debug
 
 [common-variables]
-$cflags=-c
-$lflags=-qopenmp
+$cflags=-c -parallel
+$lflags= -mkl=parallel -parallel
 
 [dist]
 help=Compile for running
 compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fast -free -O0 -cpp -qopenmp -xHost -parallel
+cflags=$cflags -DBIG_RUN -Ofast -fast -free -O0 -cpp -qopenmp
 lflags=$lflags
 ext_lib=flap
 lib_dir=./third_party/FLAP/static/
