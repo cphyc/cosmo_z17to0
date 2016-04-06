@@ -8,10 +8,10 @@ program compute_halo_prop
   !-------------------------------------
   ! Parameters
   !-------------------------------------
-  character(len=200) :: ramses_output_end, ramses_output_start, gal_list_filename, associations_filename, dm_halo_list_filename, brick_file, info_file_end, info_file_start, outfile, halo_to_cpu_file, mergertree_file
-  integer :: param_from, param_to
+  character(len=200) :: ramses_output_end, ramses_output_start, gal_list_filename, associations_filename, dm_halo_list_filename, brick_file, info_file_end, info_file_start, outfile, halo_to_cpu_file, mergertree_file, param_output_path
+  integer :: param_from, param_to, param_output_number
   integer, parameter :: NPARTICLE_TO_PROBE_HALO = 50, NCPU_PER_HALO = 10
-  real :: param_min_m, param_max_m
+  real(kind=8) :: param_min_m, param_max_m
 
   type(command_line_interface) :: cli
   !-------------------------------------
@@ -36,27 +36,37 @@ program compute_halo_prop
   ! real(kind=4), dimension(:), allocatable    :: mt_aexp, mt_omega_t, mt_age_univ, time
   ! real(kind=4), dimension(:, :), allocatable :: mt_pos, mt_vel, initial_pos
   ! integer                                    :: mt_nsteps, nsteps, nhalos
-  ! integer                                    :: initial_halo_id, current_halo, parent_halo, istep, prev, father, step, max_nhalo
+  ! integer                                    :: initial_halo_i, current_halo, parent_halo, istep, prev, father, step, max_nhalo
   ! integer, dimension(:), allocatable         :: tmp_nhalos, halos_z0
   ! integer, dimension(:), allocatable         :: parent, parent_at_step
   !-------------------------------------
   ! Particle data
   !-------------------------------------
   integer                                    :: ndim, nparts
-  real(kind=8), dimension(:, :), allocatable :: pos, vel
+  real(kind=8), dimension(:, :), allocatable :: pos, vel, tmp_pos
   integer                                    :: nstar, halo_found
   integer,      dimension(:), allocatable    :: ids, order
-  integer, dimension(:, :), allocatable      :: halo_to_cpu
-  real(kind=8), dimension(:), allocatable    :: m, birth_date
+  real(kind=8), dimension(:), allocatable    :: m, birth_date, tmp_mass
+  !-------------------------------------
+  ! Halo to cpu
+  !-------------------------------------
+  integer                               :: n_cpu_per_halo
+  integer, dimension(:, :), allocatable :: halo_to_cpu
+  !-------------------------------------
+  ! Halo properties
+  !-------------------------------------
+  real(kind=8), dimension(3, 3) :: I_t, I_t_diag
+  real(kind=8)                  :: mtot
+  integer                       :: halo_i, ntot_halo, halo_counter
   !-------------------------------------
   ! Tmp variables
   !-------------------------------------
-  integer            :: i, j, cpu
-  integer            :: tmp_int, unit, tmp_int2
-  character(len=200) :: tmp_char
-  real               :: tmp_real
-  logical            :: tmp_bool
-  integer, dimension(:), allocatable :: tmp_arr
+  integer                                 :: i, j, cpu, i1, i2, counter
+  integer                                 :: tmp_int, unit, tmp_int2
+  character(len=200)                      :: tmp_char
+  real                                    :: tmp_real
+  logical                                 :: tmp_bool
+
   !-------------------------------------
   ! random
   !-------------------------------------
@@ -70,6 +80,8 @@ program compute_halo_prop
   call cli%get(switch='--cpu-from', val=param_from)
   call cli%get(switch='--min-mass', val=param_min_m)
   call cli%get(switch='--max-mass', val=param_max_m)
+  call cli%get(switch='--output-path', val=param_output_path)
+  call cli%get(switch='--output-number', val=param_output_number)
 
   !-------------------------------------
   ! Read lists
@@ -118,117 +130,115 @@ program compute_halo_prop
   allocate(hlevel(nDM))
   allocate(LDM(infos%ndim, nDM))
   allocate(members(nDM))
-  allocate(halo_to_cpu(nDM, NCPU_PER_HALO))
   call read_brick_data(nDM, infos, .true., &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LDM, idDM, members)
   print*, '    …red!'
+  deallocate(rvirDM, mDM, mvirDM, TvirDM, hlevel, LDM)
 
   print*, ''
-  allocate(tmp_arr(NCPU_PER_HALO))
-  write(tmp_char, '(a, i0.5, a, i0.5)') "out", param_from, '-', param_to
-  print*, 'Reading file "', trim(tmp_char), '"…'
-  open(10, file=trim(tmp_char))
+  call cli%get(switch='--halo-to-cpu', val=tmp_char)
+  print*, 'Reading halo to cpu file "' // trim(tmp_char) // '"'
+  call read_list_header(trim(tmp_char), unit, nDM, n_cpu_per_halo)
+  allocate(halo_to_cpu(nDM, n_cpu_per_halo))
+  call read_list_data(unit, nDM, n_cpu_per_halo, halo_to_cpu)  
+  ntot_halo = 0
   do i = 1, nDM
-     read(10, *) idDM(i), tmp_arr
-     halo_to_cpu(i, :) = tmp_arr
-  end do
-  close(10)
-  deallocate(tmp_arr)
-  print*, '    …red!'
-
-  tmp_int = 0
-  do i = 1, nDM
-     if ( (param_min_m == 0 .or. mDM(i) > param_min_m) .and. &
-          (param_max_m == 0 .or. mDM(i) < param_max_m)) then
-        tmp_int = tmp_int + 1
+     if (halo_to_cpu(i, 1) > 0) then
+        ntot_halo = ntot_halo + 1
      end if
   end do
+  print*, '        Found', ntot_halo, 'halos!'
 
-  print*, 'Found', tmp_int, 'with m > ', param_min_m
+  print*, ''
+  print*, 'Computing inertia tensor (test)'
+  call cli%get(switch='--output', val=tmp_char)
+  print*, 'Writing in', tmp_char
+  open(unit=10, file=trim(tmp_char))
+  halo_counter = 1
+  !$OMP PARALLEL DO default(firstprivate) shared(halo_to_cpu, members, posDM, infos, halo_counter)
+  do halo_i = 1, nDM
+     if (halo_to_cpu(halo_i, 1) == 0) then
+        cycle
+     end if
+
+     write(*, '(a, i7, a, F5.1, a)') 'halo', halo_i, '(', &
+          100.*halo_counter/ntot_halo, '%)'
+     !$OMP ATOMIC
+     halo_counter = halo_counter + 1
+
+     allocate(tmp_pos(infos%ndim, members(halo_i)%parts), tmp_mass(members(halo_i)%parts))
+     I_t = 0
+     counter = 0
+     do j = 1, n_cpu_per_halo
+        if (halo_to_cpu(halo_i, j) == 0) then
+           exit
+        end if
+        cpu = halo_to_cpu(halo_i, j)
+        !-------------------------------------
+        ! Reading cpu
+        !-------------------------------------
+        call read_particle(param_output_path, param_output_number, cpu, nstar, pos, vel, m,&
+             ids, birth_date, ndim, nparts)
+        allocate(order(nparts))
+
+        ! Filter out particles not in halo
+        call quick_sort(ids, order)
+
+        do i = 1, members(halo_i)%parts
+           ! get the position of the halo_id in the ids given
+           ! if found, store its velocity into our temporary array
+           ! and add it into the total mass
+           tmp_int = indexOf(members(halo_i)%ids(i), ids)
+           if (tmp_int > 0) then
+              tmp_pos(:, i) = pos(:, tmp_int)
+              tmp_mass(i) = m(tmp_int)
+              counter = counter + 1
+           else
+              tmp_pos(:, i) = 0
+           end if
+        end do
+
+
+        deallocate(order)
+     end do
+     mtot = sum(tmp_mass)
+     ! Iterate over each couples to populate I
+     do i1 = 1, ndim
+        do i2 = i1, ndim
+           tmp_real = sum(tmp_mass*tmp_pos(i1, :)*tmp_pos(i2, :)) / mtot
+           I_t(i1, i2) = tmp_real
+           I_t(i2, i1) = tmp_real
+        end do
+     end do
+     print*, 'Found', counter, 'particles (expected', members(halo_i)%parts, ')'
+     ! print*, I_t
+     !!$OMP CRITICAL
+     write(10, '(i9, 9ES13.6e2)') idDM(halo_i), I_t
+     !!$OMP END CRITICAL
+     deallocate(tmp_pos, tmp_mass)
+  end do
+  !!$OMP END PARALLEL DO
+  close(10)
+
+  ! call compute_inertia_tensor(mDM, posDM, I_t, I_t_diag)
+  ! do i = 1, 3
+  !    print*, I_t(i, :)
+  ! end do
+  ! print*, ''
+  ! do i = 1, 3
+  !    print*, I_t_diag(i, :)
+  ! end do
+
+  ! tmp_int = 0
+  ! do i = 1, nDM
+  !    if ( (param_min_m == 0 .or. mDM(i) > param_min_m) .and. &
+  !         (param_max_m == 0 .or. mDM(i) < param_max_m)) then
+  !       tmp_int = tmp_int + 1
+  !    end if
+  ! end do
+
+  ! print*, 'Found', tmp_int, 'with m > ', param_min_m
 contains
-
-  ! subroutine read_params ()
-  !   integer            :: i,n
-  !   integer            :: iargc
-  !   character(len=4)   :: opt
-  !   character(len=128) :: arg
-  !   n = iargc()
-
-  !   ! if (n < 4) then
-  !   !    print*, 'Sort the galaxies between elliptics and spirals'
-  !   !    print*, ''
-  !   !    print*, 'Usage (all lists should come in binary format):'
-  !   !    print*, '\t -fga File to pick galaxies from'
-  !   !    print*, '\t -fdm File to pick dark matter halos from'
-  !   !    print*, '\t -fas File to get associations between dark matter halos and galaxies'
-  !   !    !TODO: write usage
-  !   ! end if
-
-  !   !-------------------------------------
-  !   ! default values
-  !   !-------------------------------------
-  !   gal_list_filename = "lists/list_kingal_00782.dat"
-  !   tmp_char = "lists/list_halo.dat.bin"
-  !   associations_filename = "lists/associated_halogal_782.dat.bin"
-  !   ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002"
-  !   ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00782"
-  !   brick_file = "/data52/Horizon-AGN/TREE_DM_celldx2kpc_SC0.9r/tree_bricks782"
-  !   info_file_end = '/data52/Horizon-AGN/OUTPUT_DIR/output_00782/info_00782.txt'
-  !   info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00002/info_00002.txt'
-  !   halo_to_cpu_file = 'lists/halo_to_cpu.00002.raw.dat.bin'
-  !   mergertree_file = '/data33/dubois/H-AGN/MergerTree/TreeMaker_HAGN/tree.dat'
-
-  !   param_from = 1
-  !   param_to = 4096
-
-  !   param_min_m = 1d13
-  !   param_max_m = 0
-
-  !   do i = 1, n, 2
-  !      call getarg(i, opt)
-  !      if (i == n) then
-  !         print*, '("option ",a2," has no argument")', opt
-  !         stop
-  !      end if
-
-  !      call getarg(i+1, arg)
-  !      select case(opt)
-  !      case ('-fga')
-  !         gal_list_filename = trim(arg)
-  !      case ('-fdm')
-  !         dm_halo_list_filename = trim(arg)
-  !      case('-fas')
-  !         associations_filename = trim(arg)
-  !      case('-ods') ! Ramses output start
-  !         ramses_output_start = trim(arg)
-  !      case('-ode') ! Ramses output start
-  !         ramses_output_end = trim(arg)
-  !      case('-bri')
-  !         brick_file = trim(arg)
-  !      case('-ifs')
-  !         info_file_start = trim(arg)
-  !      case('-ife')
-  !         info_file_end = trim(arg)
-  !      case ('-out')
-  !         outfile = trim(arg)
-  !      case ('-fro')
-  !         tmp_char = trim(arg)
-  !         read(tmp_char, '(i10)') param_from
-  !      case ('-to')
-  !         tmp_char = trim(arg)
-  !         read(tmp_char, '(i10)') param_to
-  !      ! case ('-mmi')
-  !      !    tmp_char = trim(arg)
-  !      !    read(tmp_char, '(f10)') param_min_m
-  !      ! case ('-mma')
-  !      !    tmp_char = trim(arg)
-  !      !    read(tmp_char, '(f10)') param_max_m
-  !      case default
-  !         print '("unknown option ",a2," ignored")', opt
-  !      end select
-  !   end do
-
-  ! end subroutine read_params
 
 end program compute_halo_prop
