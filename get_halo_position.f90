@@ -79,7 +79,7 @@ program sort_galaxy
   call cli%get(switch='--association-list', val=associations_filename)
   call cli%get(switch='--brick', val=brick_file)
   call cli%get(switch='--info-file', val=info_file)
-  call cli%get(swithc='--n-probe-particle', val=nparticle_to_probe_halo)
+  call cli%get(switch='--n-probe-particle', val=nparticle_to_probe_halo)
   print*, param_min_m
 
   !-------------------------------------
@@ -149,7 +149,7 @@ program sort_galaxy
      deallocate(pos, vel, m, birth_date)
 
      allocate(order(nparts))
-     call quick_sort(ids, order, nparts)
+     call quick_sort(ids, order)
      deallocate(order)
 
      halo_found = 0
