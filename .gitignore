@@ -6,3 +6,8 @@
 *~
 lists/
 bloom_filters/
+*out*
+*.o
+*.pyf
+third_party/
+mod/
