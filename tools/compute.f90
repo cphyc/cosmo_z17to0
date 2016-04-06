@@ -21,6 +21,6 @@ contains
 
     ! Diag the matrix
     I_t_diag = I_t
-    call sytrd(I_t_diag, tau)
+    call dsytrd(I_t_diag, tau)
   end subroutine compute_inertia_tensor
 end module compute
