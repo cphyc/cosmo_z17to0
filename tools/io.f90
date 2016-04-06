@@ -15,7 +15,38 @@ module io
      real(kind = 8), dimension(:), allocatable :: bound_key
   end type INFOS_T
 
-  private :: infos_read, tmp_unit, read_1, read_2, read_2_dummy
+  private :: infos_read, tmp_unit, read_1, read_2, read_2_dummy, write_list_reals, write_list_ints
+
+  !! Interface to read list
+  interface read_list_data
+     subroutine read_list_data_ints(lines, columns, data)
+       integer, intent(in)                             :: lines, columns
+       integer, dimension(lines, columns), intent(out) :: data
+     end subroutine read_list_data_ints
+
+     subroutine read_list_data_reals(lines, columns, data)
+       integer, intent(in)                                  :: lines, columns
+       real(kind=4), dimension(lines, columns), intent(out) :: data
+     end subroutine read_list_data_reals
+
+  end interface read_list_data
+
+  interface write_list
+     subroutine write_list_reals(filename, lines, columns, data)
+       integer, intent(in) :: lines, columns
+       character(len=*), intent(in) :: filename
+
+       real(kind=4), intent(in), dimension(lines, columns) :: data
+     end subroutine write_list_reals
+
+     subroutine write_list_ints(filename, lines, columns, data)
+       integer, intent(in) :: lines, columns
+       character(len=*), intent(in) :: filename
+
+       integer, intent(in), dimension(lines, columns) :: data
+     end subroutine write_list_ints
+  end interface write_list
+
 contains
 
   !! Read information of an output, returning an INFOS_T object
@@ -81,9 +112,9 @@ contains
   end subroutine assert_infos
 
   !! Read particle file header, returning the number of particules and the number of dimensions
-  subroutine read_particle_header (filename, ndim, nparts)
+  subroutine read_particle_header (filename, ndim, nparts, tmp_unit)
     character(len=*), intent(in) :: filename
-    integer, intent(out)         :: nparts, ndim
+    integer, intent(out)         :: nparts, ndim, tmp_unit
     open(newunit = tmp_unit, file=filename, status='old', form='unformatted')
     read(tmp_unit) !ncpu
     read(tmp_unit) ndim
@@ -91,8 +122,8 @@ contains
   end subroutine read_particle_header
 
   !! Read particles data, returning the particles information
-  subroutine read_particle_data (ndim, nparts, nstar, pos, vel, m, ids, birth_date)
-    integer, intent(in)                          :: ndim, nparts
+  subroutine read_particle_data (ndim, nparts, tmp_unit, nstar, pos, vel, m, ids, birth_date)
+    integer, intent(in)                          :: ndim, nparts, tmp_unit
     real(kind=8), dimension(ndim, nparts), intent(out) :: pos, vel
     integer, intent(out)                         :: nstar
     integer,      dimension(nparts), intent(out) :: ids
@@ -200,6 +231,7 @@ contains
 
        if (.not. DM_type) read(tmp_unit) !sigma stuff
        read(tmp_unit) rvir, mvir, tvir, cvel
+
        read(tmp_unit)
        if (.not. DM_type) then
           read(tmp_unit) !npoints
@@ -208,14 +240,13 @@ contains
        endif
 
        ! Convert back to adim units
-
-       hlevel(i) = mylevel
-       idDM(i) = idh
-       mDM(i) = mhalo*1d11
-       posDM(:, i) = pos / (infos%boxlen*infos%unit_l/3.08d24)+0.5d0
-       Lnorm = sqrt(L(1)*L(1) + L(2)*L(2) + L(3)*L(3))
-       LDM(:, i) = L/Lnorm
-       rvirDM(i) = rvir / (infos%boxlen*infos%unit_l/3.08d24)
+       hlevel(i)   = mylevel
+       idDM(i)     = idh
+       mDM(i)      = mhalo*1d11
+       posDM(:, i) = pos / (infos%unit_l/3.08d24)+0.5d0
+       Lnorm       = sqrt(L(1)*L(1) + L(2)*L(2) + L(3)*L(3))
+       LDM(:, i)   = L/Lnorm
+       rvirDM(i)   = rvir / (infos%boxlen*infos%unit_l/3.08d24)
        if(DM_type) then
           mvirDM(i) = mvir*1d11
        else
@@ -237,15 +268,6 @@ contains
     read(tmp_unit) lines, columns
 
   end subroutine read_list_header
-
-  !! Read the data contained in the list, returning it
-  subroutine read_list_data(lines, columns, data)
-    integer, intent(in)                                  :: lines, columns
-    real(kind=4), dimension(lines, columns), intent(out) :: data
-
-    read(tmp_unit) data
-    close(tmp_unit)
-  end subroutine read_list_data
 
   !! Read the first part of the mergertree headers, returning the number of steps of the simulation
   subroutine read_mergertree_headers_1 (mergertree_file, nsteps)
@@ -314,18 +336,37 @@ contains
   !! parameter: steps, integer array that specify the step in which to find the halo
   !! parameter: pos, vel, real arrays that gives each halo position and velocity
   subroutine read_mergertree_positions (halos, steps, &
-       pos, vel,&
-       nhalos, nsteps)
+       pos, vel, &
+       nhalos_at_step, nhalos, nsteps)
     integer, intent(in) :: nhalos, nsteps
-    integer, intent(in), dimension(nhalos) :: halos, steps
-    real(kind=8), intent(out), dimension(nhalos) :: pos, vel
+    integer, intent(in), dimension(nhalos+1) :: halos, steps
+    integer, intent(in), dimension(nsteps) :: nhalos_at_step
 
-    integer :: halo_id, nb_of_father, step
+
+    real(kind=4), intent(out), dimension(nhalos, 3) :: pos, vel
+
+    integer :: halo_id, nb_of_fathers, step, i, j
+    real(kind=4), dimension(3) :: tmp_pos, tmp_vel
+
+    pos = 0
+    vel = 0
     do step = 1, nsteps
-       call read_1(halo_id, nb_of_father)
-       allocate(idfather(nb_of_fathers), mfather(nb_of_fathers))
-       call read_2(nb_of_fathers, idfather, mfather)
-       deallocate(idfather, mfather)
+       print*, 'Step:', step, nhalos_at_step(step)
+       do i = 1, nhalos_at_step(step)
+          call read_1_dynamics(halo_id, tmp_pos, tmp_vel, nb_of_fathers)
+          call read_2_dummy(nb_of_fathers)
+          do j = 1, nhalos
+             ! at some point, halos are all 0
+             if (halos(j) == 0) then
+                exit
+             end if
+             if (step == steps(j) .and. halo_id == halos(j)) then
+                pos(j, :) = tmp_pos
+                vel(j, :) = tmp_vel
+                exit
+             end if
+          end do
+       end do
     end do
 
   end subroutine read_mergertree_positions
@@ -349,6 +390,27 @@ contains
     read(tmp_unit) nb_of_fathers
 
   end subroutine read_1
+
+  subroutine read_1_dynamics (halo_id, pos, vel, nb_of_fathers)
+    integer, intent(out) :: halo_id, nb_of_fathers
+    real(kind=4), intent(out), dimension(3) :: pos, vel
+    read(tmp_unit) halo_id
+
+    read(tmp_unit) ! bushid
+    read(tmp_unit) ! mystep
+    read(tmp_unit) ! leve, hosthalo, hostsub, nbsub, nextsub
+    read(tmp_unit) ! m
+    read(tmp_unit) ! macc
+    read(tmp_unit) pos
+    read(tmp_unit) vel
+    read(tmp_unit) ! Lx, Ly, Lz
+    read(tmp_unit) ! r, ra, rb, rc
+    read(tmp_unit) ! ek, ep, et
+    read(tmp_unit) ! spin
+
+    read(tmp_unit) nb_of_fathers
+
+  end subroutine read_1_dynamics
 
   subroutine read_2_dummy (nb_of_fathers)
     integer, intent(in) :: nb_of_fathers
@@ -390,3 +452,55 @@ contains
   end subroutine read_2
 
 end module io
+
+!-------------------------------------
+! Subroutines to interface
+!-------------------------------------
+!! Read the data contained in the list, returning it
+subroutine read_list_data_reals(lines, columns, data)
+
+  integer, intent(in)                                  :: lines, columns
+  real(kind=4), dimension(lines, columns), intent(out) :: data
+
+  read(tmp_unit) data
+  close(tmp_unit)
+end subroutine read_list_data_reals
+
+subroutine read_list_data_ints(lines, columns, data)
+  integer, intent(in)                                  :: lines, columns
+  integer, dimension(lines, columns), intent(out) :: data
+
+  read(tmp_unit) data
+  close(tmp_unit)
+end subroutine read_list_data_ints
+
+!! Write a list file
+subroutine write_list_reals(filename, lines, columns, data)
+  integer, intent(in) :: lines, columns
+  character(len=*), intent(in) :: filename
+
+  real (kind=4), intent(in), dimension(lines, columns) :: data
+
+  integer :: unit
+
+  open(newunit=unit, file=trim(filename), form='unformatted')
+
+  write(unit) lines, columns
+  write(unit) data
+  close(unit)
+end subroutine write_list_reals
+
+subroutine write_list_ints(filename, lines, columns, data)
+  integer, intent(in) :: lines, columns
+  character(len=*), intent(in) :: filename
+
+  integer, intent(in), dimension(lines, columns) :: data
+
+  integer :: unit
+
+  open(newunit=unit, file=trim(filename), form='unformatted')
+
+  write(unit) lines, columns
+  write(unit) data
+  close(unit)
+end subroutine write_list_ints
