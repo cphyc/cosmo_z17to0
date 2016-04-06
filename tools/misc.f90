@@ -88,21 +88,22 @@ contains
 
   end subroutine hilbert3D
 
-  subroutine quick_sort(list, order, n)
+  subroutine quick_sort(list, order)
     ! quick sort routine from:
     ! brainerd, w.s., goldberg, c.h. & adams, j.c. (1990) "programmer's guide to
     ! fortran 90", mcgraw-hill  isbn 0-07-000248-7, pages 149-150.
     ! modified by alan miller to include an associated integer array which gives
     ! the positions of the elements in the original order.
-    integer, parameter::i8b = 8
+    integer, parameter :: i8b = 8
 
-    integer, intent(in) :: n
-    integer, dimension (n), intent(inout)  :: list
-    integer, dimension (n), intent(out)    :: order
+    integer, dimension (:), intent(inout)                  :: list
+    integer, dimension (size(list)), intent(out), optional :: order
 
+    integer :: n
     ! local variable
     integer :: i
 
+    n = size(list)
     do i = 1, n
        order(i) = i
     end do
@@ -396,7 +397,7 @@ contains
     integer :: ptr, i
 
     tmp_array = array
-    call quick_sort(tmp_array, order, size(array))
+    call quick_sort(tmp_array, order)
 
     u_array = 0
     u_array(1) = tmp_array(1)
