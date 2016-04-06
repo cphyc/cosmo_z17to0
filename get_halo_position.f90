@@ -164,12 +164,15 @@ program sort_galaxy
   allocate(tmp_arr(NCPU_PER_HALO))
   write(tmp_char, '(a, i0.5, a, i0.5)') "out", param_from, '-', param_to
   open(10, file=tmp_char)
+  write(10, *) nDM, NCPU_PER_HALO
   do i = 1, nDM
      tmp_arr = halo_to_cpu(i, :)
      write(10, *) idDM(i), tmp_arr
   end do
   close(10)
   deallocate(tmp_arr)
+
+  call write_list(trim(tmp_char) // '.bin', nDM, NCPU_PER_HALO, halo_to_cpu)
 
 contains
   subroutine read_params ()

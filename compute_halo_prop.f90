@@ -75,25 +75,25 @@ program compute_halo_prop
   !-------------------------------------
   call cli%get(switch='--gal-list', val=tmp_char)
   print*, 'Reading file "' // trim(tmp_char) // '"'
-  call read_list_header(trim(tmp_char), ngal, gal_cols)
+  call read_list_header(trim(tmp_char), unit, ngal, gal_cols)
   allocate(data_gal(ngal, gal_cols+1))
-  call read_list_data(ngal, gal_cols, data_gal)
+  call read_list_data(unit, ngal, gal_cols, data_gal)
   print*, 'Got', ngal, 'galaxies in da pocket'
 
   call cli%get(switch='--association-list', val=tmp_char)
   print*, ''
   print*, 'Reading file "' // trim(tmp_char) // '"'
-  call read_list_header(trim(tmp_char), nassoc, assoc_cols)
+  call read_list_header(trim(tmp_char), unit, nassoc, assoc_cols)
   allocate(data_associations(nassoc, assoc_cols))
-  call read_list_data(nassoc, assoc_cols, data_associations)
+  call read_list_data(unit, nassoc, assoc_cols, data_associations)
   print*, 'Got', nassoc, 'associations in da pocket'
 
   call cli%get(switch='--halo-list', val=tmp_char)
   print*, ''
   print*, 'Reading file "' // trim(tmp_char) // '"'
-  call read_list_header(trim(tmp_char), ndm_halo, dm_halo_cols)
+  call read_list_header(trim(tmp_char), unit, ndm_halo, dm_halo_cols)
   allocate(data_halo(ndm_halo, dm_halo_cols))
-  call read_list_data(ndm_halo, dm_halo_cols, data_halo)
+  call read_list_data(unit, ndm_halo, dm_halo_cols, data_halo)
   print*, 'Got', ndm_halo, 'halos in da pocket'
 
   !-------------------------------------

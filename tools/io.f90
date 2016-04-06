@@ -19,13 +19,13 @@ module io
 
   !! Interface to read list
   interface read_list_data
-     subroutine read_list_data_ints(lines, columns, data)
-       integer, intent(in)                             :: lines, columns
+     subroutine read_list_data_ints(unit, lines, columns, data)
+       integer, intent(in)                             :: unit, lines, columns
        integer, dimension(lines, columns), intent(out) :: data
      end subroutine read_list_data_ints
 
-     subroutine read_list_data_reals(lines, columns, data)
-       integer, intent(in)                                  :: lines, columns
+     subroutine read_list_data_reals(unit, lines, columns, data)
+       integer, intent(in)                                  :: unit, lines, columns
        real(kind=4), dimension(lines, columns), intent(out) :: data
      end subroutine read_list_data_reals
 
@@ -260,12 +260,12 @@ contains
   end subroutine read_brick_data
 
   !! Read the headers of the list, returning the shape of the data
-  subroutine read_list_header(filename, lines, columns)
+  subroutine read_list_header(filename, unit, lines, columns)
     character(len=*), intent(in) :: filename
-    integer, intent(out)         :: lines, columns
+    integer, intent(out)         :: unit, lines, columns
 
-    open(newunit=tmp_unit, file=filename, form='unformatted')
-    read(tmp_unit) lines, columns
+    open(newunit=unit, file=filename, form='unformatted')
+    read(unit) lines, columns
 
   end subroutine read_list_header
 
@@ -457,21 +457,20 @@ end module io
 ! Subroutines to interface
 !-------------------------------------
 !! Read the data contained in the list, returning it
-subroutine read_list_data_reals(lines, columns, data)
-
-  integer, intent(in)                                  :: lines, columns
+subroutine read_list_data_reals(unit, lines, columns, data)
+  integer, intent(in)                                  :: unit, lines, columns
   real(kind=4), dimension(lines, columns), intent(out) :: data
 
-  read(tmp_unit) data
-  close(tmp_unit)
+  read(unit) data
+  close(unit)
 end subroutine read_list_data_reals
 
-subroutine read_list_data_ints(lines, columns, data)
-  integer, intent(in)                                  :: lines, columns
+subroutine read_list_data_ints(unit, lines, columns, data)
+  integer, intent(in)                             :: unit, lines, columns
   integer, dimension(lines, columns), intent(out) :: data
 
-  read(tmp_unit) data
-  close(tmp_unit)
+  read(unit) data
+  close(unit)
 end subroutine read_list_data_ints
 
 !! Write a list file
