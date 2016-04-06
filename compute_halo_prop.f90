@@ -2,6 +2,7 @@ program compute_halo_prop
   use io
   use misc
   use flap, only : command_line_interface
+  use compute
   implicit none
 
   !-------------------------------------
