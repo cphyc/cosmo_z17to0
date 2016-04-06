@@ -1,6 +1,8 @@
+#CC=gfortran
 CC=ifort
-#CFLAGS=-DBIG_RUN -fast -free -m64 -cpp
-CFLAGS=-i4 -r8 -O0  -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all  -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapuv
+#CFLAGS=-DBIG_RUN -Ofast -fast -free -O0 -cpp -qopenmp
+CFLAGS=-qopenmp -i4 -r8 -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapuv
+#CFLAGS=-std=f2003
 LFLAGS=
 SRCFILES=$(shell find . -type f -name "*.f90" -not -path "*tools*")
 
