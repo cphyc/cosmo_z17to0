@@ -146,106 +146,88 @@ program compute_halo_prop
 
   print*, 'Found', tmp_int, 'with m > ', param_min_m
 contains
-  subroutine read_params ()
-    integer            :: i,n
-    integer            :: iargc
-    character(len=4)   :: opt
-    character(len=128) :: arg
-    n = iargc()
 
-    ! if (n < 4) then
-    !    print*, 'Sort the galaxies between elliptics and spirals'
-    !    print*, ''
-    !    print*, 'Usage (all lists should come in binary format):'
-    !    print*, '\t -fga File to pick galaxies from'
-    !    print*, '\t -fdm File to pick dark matter halos from'
-    !    print*, '\t -fas File to get associations between dark matter halos and galaxies'
-    !    !TODO: write usage
-    ! end if
+  ! subroutine read_params ()
+  !   integer            :: i,n
+  !   integer            :: iargc
+  !   character(len=4)   :: opt
+  !   character(len=128) :: arg
+  !   n = iargc()
 
-    !-------------------------------------
-    ! default values
-    !-------------------------------------
-    gal_list_filename = "lists/list_kingal_00782.dat"
-    tmp_char = "lists/list_halo.dat.bin"
-    associations_filename = "lists/associated_halogal_782.dat.bin"
-    ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002"
-    ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00782"
-    brick_file = "/data52/Horizon-AGN/TREE_DM_celldx2kpc_SC0.9r/tree_bricks782"
-    info_file_end = '/data52/Horizon-AGN/OUTPUT_DIR/output_00782/info_00782.txt'
-    info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00002/info_00002.txt'
-    halo_to_cpu_file = 'lists/halo_to_cpu.00002.raw.dat.bin'
-    mergertree_file = '/data33/dubois/H-AGN/MergerTree/TreeMaker_HAGN/tree.dat'
+  !   ! if (n < 4) then
+  !   !    print*, 'Sort the galaxies between elliptics and spirals'
+  !   !    print*, ''
+  !   !    print*, 'Usage (all lists should come in binary format):'
+  !   !    print*, '\t -fga File to pick galaxies from'
+  !   !    print*, '\t -fdm File to pick dark matter halos from'
+  !   !    print*, '\t -fas File to get associations between dark matter halos and galaxies'
+  !   !    !TODO: write usage
+  !   ! end if
 
-    param_from = 1
-    param_to = 4096
+  !   !-------------------------------------
+  !   ! default values
+  !   !-------------------------------------
+  !   gal_list_filename = "lists/list_kingal_00782.dat"
+  !   tmp_char = "lists/list_halo.dat.bin"
+  !   associations_filename = "lists/associated_halogal_782.dat.bin"
+  !   ramses_output_start = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002"
+  !   ramses_output_end = "/data52/Horizon-AGN/OUTPUT_DIR/output_00782"
+  !   brick_file = "/data52/Horizon-AGN/TREE_DM_celldx2kpc_SC0.9r/tree_bricks782"
+  !   info_file_end = '/data52/Horizon-AGN/OUTPUT_DIR/output_00782/info_00782.txt'
+  !   info_file_start = '/data52/Horizon-AGN/OUTPUT_DIR/output_00002/info_00002.txt'
+  !   halo_to_cpu_file = 'lists/halo_to_cpu.00002.raw.dat.bin'
+  !   mergertree_file = '/data33/dubois/H-AGN/MergerTree/TreeMaker_HAGN/tree.dat'
 
-    param_min_m = 1d13
-    param_max_m = 0
+  !   param_from = 1
+  !   param_to = 4096
 
-    do i = 1, n, 2
-       call getarg(i, opt)
-       if (i == n) then
-          print*, '("option ",a2," has no argument")', opt
-          stop
-       end if
+  !   param_min_m = 1d13
+  !   param_max_m = 0
 
-       call getarg(i+1, arg)
-       select case(opt)
-       case ('-fga')
-          gal_list_filename = trim(arg)
-       case ('-fdm')
-          dm_halo_list_filename = trim(arg)
-       case('-fas')
-          associations_filename = trim(arg)
-       case('-ods') ! Ramses output start
-          ramses_output_start = trim(arg)
-       case('-ode') ! Ramses output start
-          ramses_output_end = trim(arg)
-       case('-bri')
-          brick_file = trim(arg)
-       case('-ifs')
-          info_file_start = trim(arg)
-       case('-ife')
-          info_file_end = trim(arg)
-       case ('-out')
-          outfile = trim(arg)
-       case ('-fro')
-          tmp_char = trim(arg)
-          read(tmp_char, '(i10)') param_from
-       case ('-to')
-          tmp_char = trim(arg)
-          read(tmp_char, '(i10)') param_to
-       ! case ('-mmi')
-       !    tmp_char = trim(arg)
-       !    read(tmp_char, '(f10)') param_min_m
-       ! case ('-mma')
-       !    tmp_char = trim(arg)
-       !    read(tmp_char, '(f10)') param_max_m
-       case default
-          print '("unknown option ",a2," ignored")', opt
-       end select
-    end do
+  !   do i = 1, n, 2
+  !      call getarg(i, opt)
+  !      if (i == n) then
+  !         print*, '("option ",a2," has no argument")', opt
+  !         stop
+  !      end if
 
-  end subroutine read_params
+  !      call getarg(i+1, arg)
+  !      select case(opt)
+  !      case ('-fga')
+  !         gal_list_filename = trim(arg)
+  !      case ('-fdm')
+  !         dm_halo_list_filename = trim(arg)
+  !      case('-fas')
+  !         associations_filename = trim(arg)
+  !      case('-ods') ! Ramses output start
+  !         ramses_output_start = trim(arg)
+  !      case('-ode') ! Ramses output start
+  !         ramses_output_end = trim(arg)
+  !      case('-bri')
+  !         brick_file = trim(arg)
+  !      case('-ifs')
+  !         info_file_start = trim(arg)
+  !      case('-ife')
+  !         info_file_end = trim(arg)
+  !      case ('-out')
+  !         outfile = trim(arg)
+  !      case ('-fro')
+  !         tmp_char = trim(arg)
+  !         read(tmp_char, '(i10)') param_from
+  !      case ('-to')
+  !         tmp_char = trim(arg)
+  !         read(tmp_char, '(i10)') param_to
+  !      ! case ('-mmi')
+  !      !    tmp_char = trim(arg)
+  !      !    read(tmp_char, '(f10)') param_min_m
+  !      ! case ('-mma')
+  !      !    tmp_char = trim(arg)
+  !      !    read(tmp_char, '(f10)') param_max_m
+  !      case default
+  !         print '("unknown option ",a2," ignored")', opt
+  !      end select
+  !   end do
 
-  subroutine fill(array, val, counter)
-    integer, intent(in) :: val
-    integer, intent(inout), dimension(:) :: array
-
-    integer, intent(out) :: counter
-    integer :: i
-
-    do i = 1, size(array)
-       if (array(i) == val) then
-          exit
-       else if (array(i)  == 0) then
-          counter = counter + 1
-          array(i) = val
-          exit
-       end if
-    end do
-
-  end subroutine fill
+  ! end subroutine read_params
 
 end program compute_halo_prop
