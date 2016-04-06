@@ -2,14 +2,14 @@
 modes=dist debug
 
 [common-variables]
-$cflags=-c -parallel
-$lflags= -mkl=parallel -parallel
+$cflags=-c
+$lflags= -parallel
 
 [dist]
 help=Compile for running
 compiler=intel
 cflags=$cflags -DBIG_RUN -Ofast -fast -free -O0 -cpp -qopenmp
-lflags=$lflags
+lflags=$lflags -mkl=parallel
 ext_lib=flap
 lib_dir=./third_party/FLAP/static/
 include=./third_party/FLAP/static/mod/
@@ -18,4 +18,4 @@ include=./third_party/FLAP/static/mod/
 help=Compile for debugging
 compiler=intel
 cflags=$cflags -i4 -r8 -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu
-lflags=$lflags
+lflags=$lflags -mkl=sequential
