@@ -1,4 +1,4 @@
-program sort_galaxy
+program compute_halo_prop
   use io
   use misc
   use flap, only : command_line_interface
@@ -248,4 +248,4 @@ contains
 
   end subroutine fill
 
-end program sort_galaxy
+end program compute_halo_prop
