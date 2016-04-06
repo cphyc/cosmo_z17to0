@@ -421,7 +421,7 @@ contains
     call cli%add(switch='--min-mass', switch_ab='-minm', help='Minimum mass', act='store',&
          def='0')
     call cli%add(switch='--max-mass', switch_ab='-maxm', help='Maximum mass', act='store',&
-         def='1e100')
+         def='1e99')
     call cli%add(switch='--gal-list', help='List of galaxies', act='store', &
          def='lists/list_kingal_00782.dat')
     call cli%add(switch='--halo-list', help='List of dark matter halo', act='store', &
@@ -444,6 +444,12 @@ contains
          act='store', def='lists/halo_to_cpu.00002.m<1e12.dat.bin')
     call cli%add(switch='--n-probe-particle', help='When using random particles, number of random particle to pick.', &
          act='store', def='50')
+    call cli%add(switch='--output-path', help='Path of the output', &
+         act='store', def='/data52/Horizon-AGN/OUTPUT_DIR')
+    call cli%add(switch='--output-number', help='Number of the output', &
+         act='store', def='2')
+    call cli%add(switch='--output', switch_ab='-o', help='Name of the output file', &
+         act='store', def='data.out')
 
   end subroutine parse_params
 
