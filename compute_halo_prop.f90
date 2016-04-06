@@ -55,10 +55,10 @@ program compute_halo_prop
   !-------------------------------------
   ! Halo properties
   !-------------------------------------
-  real(kind=8), dimension(3, 3)  :: I_t_diag
-  real(kind=8), dimension(:,:,:) :: I_t
-  real(kind=8)                   :: mtot
-  integer                        :: halo_i, ntot_halo, halo_counter
+  real(kind=8), dimension(3, 3)               :: I_t_diag
+  real(kind=8), dimension(:,:,:), allocatable :: I_t
+  real(kind=8)                                :: mtot
+  integer                                     :: halo_i, ntot_halo, halo_counter
   !-------------------------------------
   ! Tmp variables
   !-------------------------------------
@@ -151,16 +151,17 @@ program compute_halo_prop
   end do
   print*, '        Found', ntot_halo, 'halos!'
 
-  print*, ''
-  print*, 'Computing inertia tensor (test)'
   call cli%get(switch='--output', val=tmp_char)
-  print*, 'Writing in', tmp_char
+  print*, ''
+  print*, 'Writing output in ', trim(tmp_char)
+  print*, 'Computing inertia tensor'
   open(unit=10, file=trim(tmp_char))
-  write(10, '(a9, 9a13)') 'id', 'xx', 'xy', 'xz', 'yx', 'yy', 'yz', 'zx', 'zy', 'zz'
+  write(10, '(a9, 10a13)') 'id', 'mass', 'xx', 'xy', 'xz', 'yx', 'yy', 'yz', 'zx', 'zy', 'zz'
   halo_counter = 1
   allocate(I_t(3, 3, nDM))
   I_t = 0
-  !$OMP PARALLEL DO default(firstprivate) shared(halo_to_cpu, members, posDM, infos, halo_counter)
+  !$OMP PARALLEL DO default(firstprivate) shared(halo_to_cpu, members, posDM, infos) &
+  !$OMP shared(halo_counter, I_t)
   do halo_i = 1, nDM
      if (halo_to_cpu(halo_i, 1) == 0) then
         cycle
@@ -209,41 +210,15 @@ program compute_halo_prop
      !-------------------------------------
      ! compute inertia tensor
      !-------------------------------------
-     do i1 = 1, ndim
-        do i2 = i1, ndim
-           tmp_real = sum(tmp_mass*tmp_pos(i1, :)*tmp_pos(i2, :)) / mtot
-           I_t(i1, i2, halo_i) = tmp_real
-           I_t(i2, i1, halo_i) = tmp_real
-        end do
-     end do
+     call compute_inertia_tensor(tmp_mass, tmp_pos, I_t(:, :, halo_i))
      print*, 'Found', counter, 'particles (expected', members(halo_i)%parts, ')'
      ! print*, I_t
-     !$OMP CRITICAL
-     write(10, '(i9, 9ES13.6e2)') idDM(halo_i), I_t(:, :, halo_i)
-     !$OMP END CRITICAL
+     write(10, '(i9, 10ES13.6e2)') idDM(halo_i), mtot, I_t(:, :, halo_i)
      deallocate(tmp_pos, tmp_mass)
   end do
   !$OMP END PARALLEL DO
   close(10)
 
-  ! call compute_inertia_tensor(mDM, posDM, I_t, I_t_diag)
-  ! do i = 1, 3
-  !    print*, I_t(i, :)
-  ! end do
-  ! print*, ''
-  ! do i = 1, 3
-  !    print*, I_t_diag(i, :)
-  ! end do
-
-  ! tmp_int = 0
-  ! do i = 1, nDM
-  !    if ( (param_min_m == 0 .or. mDM(i) > param_min_m) .and. &
-  !         (param_max_m == 0 .or. mDM(i) < param_max_m)) then
-  !       tmp_int = tmp_int + 1
-  !    end if
-  ! end do
-
-  ! print*, 'Found', tmp_int, 'with m > ', param_min_m
 contains
 
 end program compute_halo_prop
