@@ -436,11 +436,34 @@ contains
     call cli%add(switch='--brick', help='Path for brick file that contains the halos', &
          act='store', def='/data52/Horizon-AGN/TREE_DM_celldx2kpc_SC0.9r/tree_bricks782')
     call cli%add(switch='--cpu-from', help='First cpu to use', &
-         act='store', def='0')
-    call cli%add(switch='--cpy-to', help='Last cpu to use', &
-         act='store', def='0')
+         act='store', def='1')
+    call cli%add(switch='--cpu-to', help='Last cpu to use', &
+         act='store', def='4096')
 
   end subroutine parse_params
+
+  ! Fill an array using val. If the value if found in array, or the array
+  ! has already been filled do nothing, else add the value and increment the
+  ! counter
+  subroutine fill(array, val, counter)
+
+    integer, intent(in) :: val
+    integer, intent(inout), dimension(:) :: array
+
+    integer, intent(out) :: counter
+    integer :: i
+
+    do i = 1, size(array)
+       if (array(i) == val) then
+          exit
+       else if (array(i)  == 0) then
+          counter = counter + 1
+          array(i) = val
+          exit
+       end if
+    end do
+
+  end subroutine fill
 
 
 end module misc
