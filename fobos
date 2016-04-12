@@ -1,5 +1,5 @@
 [modes]
-modes=dist debug
+modes=dist dist-no-parallel debug
 
 [common-variables]
 $cflags=-c
@@ -10,12 +10,20 @@ mod_dir=./mod/
 build_dir=./build/
 exec_dir=./bin/
 
+[dist-no-parallel]
+template=template-dir
+help=Compile for running
+compiler=intel
+cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -xHost
+lflags=$lflags -mkl=sequential
+jobs=4
+
 [dist]
 template=template-dir
 help=Compile for running
 compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fast -free -O0 -cpp -qopenmp
-lflags=$lflags -mkl=parallel -qopenmp
+cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -openmp -xHost -parallel
+lflags=$lflags -mkl=parallel -openmp -parallel
 jobs=4
 
 [debug]
