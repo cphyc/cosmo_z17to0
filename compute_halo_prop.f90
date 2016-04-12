@@ -46,18 +46,21 @@ program compute_halo_prop
   real(kind=8), dimension(:, :), allocatable :: pos, vel, tmp_pos
   integer                                    :: nstar, halo_found
   integer,      dimension(:), allocatable    :: ids, order
-  real(kind=8), dimension(:), allocatable    :: m, birth_date, tmp_mass
+  real(kind=8), dimension(:), allocatable    :: m, tmp_mass
+  real(kind=4), dimension(:), allocatable    :: birth_date
   !-------------------------------------
   ! Halo to cpu
   !-------------------------------------
   integer                               :: n_cpu_per_halo
   integer, dimension(:, :), allocatable :: halo_to_cpu
+  integer, dimension(:), allocatable    :: cpu_list
   !-------------------------------------
   ! Halo properties
   !-------------------------------------
   real(kind=8), dimension(3, 3)               :: I_t_diag
   real(kind=8), dimension(:,:,:), allocatable :: I_t
   real(kind=8)                                :: mtot
+  real(kind=8), dimension(3) :: std, pos_mean
   integer                                     :: halo_i, ntot_halo, halo_counter
   !-------------------------------------
   ! Tmp variables
@@ -65,8 +68,12 @@ program compute_halo_prop
   integer                                 :: i, j, cpu, i1, i2, counter
   integer                                 :: tmp_int, unit, tmp_int2
   character(len=200)                      :: tmp_char
-  real                                    :: tmp_real
+  real                                    :: tmp_real, factor
   logical                                 :: tmp_bool
+  real(kind=8), allocatable, dimension(:) :: tmp_arr, tmp_arr2
+  real(kind=8), allocatable, dimension(:,:) :: tmp_dblarr
+  integer, allocatable, dimension(:) :: tmp_iarr
+  logical, dimension(4096) :: cpu_read
 
   !-------------------------------------
   ! random
@@ -131,6 +138,7 @@ program compute_halo_prop
   allocate(hlevel(nDM))
   allocate(LDM(infos%ndim, nDM))
   allocate(members(nDM))
+  allocate(cpu_list(infos%ncpu))
   call read_brick_data(nDM, infos, .true., &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LDM, idDM, members)
@@ -156,6 +164,7 @@ program compute_halo_prop
   print*, 'Writing output in ', trim(tmp_char)
   print*, 'Computing inertia tensor'
   open(unit=10, file=trim(tmp_char))
+  open(unit=123, file='missing_parts')
   write(10, '(a9, 10a13)') 'id', 'mass', 'xx', 'xy', 'xz', 'yx', 'yy', 'yz', 'zx', 'zy', 'zz'
   halo_counter = 1
   allocate(I_t(3, 3, nDM))
@@ -163,6 +172,7 @@ program compute_halo_prop
   !$OMP PARALLEL DO default(firstprivate) shared(halo_to_cpu, members, posDM, infos) &
   !$OMP shared(halo_counter, I_t)
   do halo_i = 1, nDM
+     cpu_read = .false.
      if (halo_to_cpu(halo_i, 1) == 0) then
         cycle
      end if
@@ -173,52 +183,136 @@ program compute_halo_prop
      halo_counter = halo_counter + 1
 
      allocate(tmp_pos(infos%ndim, members(halo_i)%parts), tmp_mass(members(halo_i)%parts))
-     counter = 0
+     counter  = 0
+     tmp_pos  = 0
+     tmp_mass = 0
+
      do j = 1, n_cpu_per_halo
         if (halo_to_cpu(halo_i, j) == 0) then
-           exit
+           cycle
         end if
         cpu = halo_to_cpu(halo_i, j)
-        !-------------------------------------
-        ! Reading cpu
-        !-------------------------------------
-        call read_particle(param_output_path, param_output_number, cpu, nstar, pos, vel, m,&
-             ids, birth_date, ndim, nparts)
-        allocate(order(nparts))
-
-        ! Filter out particles not in halo
-        call quick_sort(ids, order)
-
-        do i = 1, members(halo_i)%parts
-           ! get the position of the halo_id in the ids given
-           ! if found, store its velocity into our temporary array
-           ! and add it into the total mass
-           tmp_int = indexOf(members(halo_i)%ids(i), ids)
-           if (tmp_int > 0) then
-              tmp_pos(:, i) = pos(:, tmp_int)
-              tmp_mass(i) = m(tmp_int)
-              counter = counter + 1
-           else
-              tmp_pos(:, i) = 0
-           end if
-        end do
-
-
-        deallocate(order)
+        call treat_cpu(tmp_pos, tmp_mass, cpu)
+        cpu_read(cpu) = .true.
      end do
      mtot = sum(tmp_mass)
+
+     !-------------------------------------
+     ! find missing particles, if any (trigger for 1% of missing particles)
+     !-------------------------------------
+     factor = 1d-3
+     call correct_positions(tmp_pos)
+     do while (1d0*counter / members(halo_i)%parts < 0.99)
+        factor = factor * 2d0
+        call compute_mean(tmp_pos, pos_mean)
+
+        allocate(tmp_arr(infos%ndim), tmp_arr2(infos%ndim))
+        tmp_arr = pos_mean - factor
+        tmp_arr2 = pos_mean + factor
+        call get_cpu_list(tmp_arr, tmp_arr2, infos%levelmax, infos%bound_key, &
+             cpu_list, infos%ncpu, infos%ndim)
+        print*, 'W: missing particles, looking them in '
+        print*, tmp_arr
+        print*, tmp_arr2
+        print*, infos%levelmax, infos%ncpu, infos%ndim
+        deallocate(tmp_arr, tmp_arr2)
+
+        do i = 1, infos%ncpu
+           if (cpu_list(i) > 0) then
+              if (.not. cpu_read(cpu_list(i))) then
+                 print*, 'Reading further', cpu_list(i)
+              end if
+           end if
+        end do
+        do i = 1, infos%ncpu
+           if (cpu_list(i) > 0) then
+              if (.not. cpu_read(cpu_list(i)) .and. &
+                   (counter /= members(halo_i)%parts)) then
+                 cpu = cpu_list(i)
+                 call treat_cpu(tmp_pos, tmp_mass, cpu)
+                 cpu_read(cpu_list(i)) = .true.
+              end if
+           end if
+        end do
+        ! print*, 'CPUs'
+        ! print*, halo_to_cpu(halo_i, :)
+        ! print*, cpu_list(:tmp_int)
+        ! write(123, *) idDM(halo_i)
+        call correct_positions(tmp_pos)
+     end do
+     print*, 'Found', counter, 'particles (expected', members(halo_i)%parts, ')'
      !-------------------------------------
      ! compute inertia tensor
      !-------------------------------------
-     call compute_inertia_tensor(tmp_mass, tmp_pos, I_t(:, :, halo_i))
-     print*, 'Found', counter, 'particles (expected', members(halo_i)%parts, ')'
-     ! print*, I_t
-     write(10, '(i9, 10ES13.6e2)') idDM(halo_i), mtot, I_t(:, :, halo_i)
+     allocate(tmp_dblarr(3, 3))
+     call compute_inertia_tensor(tmp_mass, tmp_pos, tmp_dblarr)
+     I_t(:, :, halo_i) = tmp_dblarr
+     write(10, '(i9, 10ES13.6e2)') idDM(halo_i), mtot, tmp_dblarr
+     deallocate(tmp_dblarr)
+
      deallocate(tmp_pos, tmp_mass)
   end do
   !$OMP END PARALLEL DO
   close(10)
+  close(123)
 
 contains
+  subroutine compute_mean(pos, mean)
+    real(kind=8), dimension(:, :), intent(in) :: pos
+    real(kind=8), dimension(3), intent(out)   :: mean
+
+    integer :: i, j, count
+    count = 0
+    mean = 0
+    do i = 1, members(halo_i)%parts
+       if (sum(pos(:, i)**2) > 0) then
+          mean = mean + pos(:, i)
+          count = count + 1
+       end if
+    end do
+    if (count > 0) then
+       mean = mean / (1d0*count)
+    else
+       print*, 'W: count is null', pos(:, :10)
+    end if
+  end subroutine compute_mean
+  subroutine treat_cpu(tmp_pos, tmp_mass, cpu)
+    integer, intent(in) :: cpu
+
+    real(kind=8), intent(inout), dimension(:, :) :: tmp_pos
+    real(kind=8), intent(inout), dimension(:)    :: tmp_mass
+
+    real(kind=8), dimension(:, :), allocatable :: pos, vel
+    real(kind=8), dimension(:),    allocatable :: m
+    real(kind=4), dimension(:),    allocatable :: birth_date
+    integer     , dimension(:),    allocatable :: ids
+
+    integer :: nstar, index
+    integer :: i
+    !-------------------------------------
+    ! Reading cpu
+    !-------------------------------------
+    print*, 'Reading cpu', cpu, '(', counter, '/', members(halo_i)%parts, ')'
+    call read_particle(param_output_path, param_output_number, cpu, nstar, pos, vel, m,&
+         ids, birth_date, ndim, nparts)
+    allocate(order(nparts))
+
+    ! Filter out particles not in halo
+    call quick_sort(ids, order)
+
+    do i = 1, members(halo_i)%parts
+       ! get the position of the halo_id in the ids given
+       ! if found, store its velocity into our temporary array
+       ! and add it into the total mass
+       index = indexOf(members(halo_i)%ids(i), ids)
+       if (index > 0) then
+          tmp_pos(:, i) = pos(:, index)
+          tmp_mass(i) = m(index)
+          counter = counter + 1
+       end if
+    end do
+
+    deallocate(order)
+  end subroutine treat_cpu
 
 end program compute_halo_prop

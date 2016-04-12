@@ -73,7 +73,7 @@ contains
     read(10, *)
     read(10, *)
 
-    read(10, '("boxlen      =",E23.15)') infos%boxlen
+   read(10, '("boxlen      =",E23.15)') infos%boxlen
     read(10, '("time        =",E23.15)') infos%t
     read(10, '("aexp        =",E23.15)') infos%aexp
     read(10, *)
@@ -119,7 +119,8 @@ contains
     real(kind=8), dimension(:, :), intent(out), allocatable :: pos, vel
     integer, intent(out)                                    :: nstar, ndim, nparts
     integer,      dimension(:), intent(out), allocatable    :: ids
-    real(kind=8), dimension(:), intent(out), allocatable    :: m, birth_date
+    real(kind=8), dimension(:), intent(out), allocatable    :: m
+    real(kind=4), dimension(:), intent(out), allocatable    :: birth_date
 
     character(len=10)  :: tmp_char1, tmp_char2
     character(len=100) :: path
@@ -155,7 +156,8 @@ contains
     real(kind=8), dimension(ndim, nparts), intent(out) :: pos, vel
     integer, intent(out)                         :: nstar
     integer,      dimension(nparts), intent(out) :: ids
-    real(kind=8), dimension(nparts), intent(out) :: m, birth_date
+    real(kind=8), dimension(nparts), intent(out) :: m
+    real(kind=4), dimension(nparts), intent(out) :: birth_date
 
     real(kind=8), dimension(nparts) :: tmp
 

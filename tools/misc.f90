@@ -1,5 +1,44 @@
 module misc
   implicit none
+
+  interface minmax
+     subroutine minmax_r(array, min, max)
+       real(kind=8), intent(in), dimension(:) :: array
+       real(kind=8), intent(out) :: min, max
+     end subroutine minmax_r
+
+     subroutine minmax_i (array, min, max)
+       integer, intent(in), dimension(:) :: array
+
+       integer, intent(out) :: min, max
+     end subroutine minmax_i
+  end interface minmax
+
+  interface meanval
+     subroutine mean_1(array, mean, n)
+       integer, intent(in) :: n
+       real(kind=8), intent(in), dimension(n) :: array
+       real(kind=8), intent(out) :: mean
+     end subroutine mean_1
+     subroutine mean_2(array, mean, n, m)
+       integer, intent(in) :: n, m
+       real(kind=8), intent(in), dimension(n, m) :: array
+       real(kind=8), intent(out), dimension(n) :: mean
+     end subroutine mean_2
+  end interface meanval
+
+  interface stddev
+     subroutine stddev_1(array, mean, n)
+       integer, intent(in) :: n
+       real(kind=8), intent(in), dimension(n) :: array
+       real(kind=8), intent(out) :: mean
+     end subroutine stddev_1
+     subroutine stddev_2(array, mean, n, m)
+       integer, intent(in) :: n, m
+       real(kind=8), intent(in), dimension(n,m) :: array
+       real(kind=8), intent(out), dimension(n) :: mean
+     end subroutine stddev_2
+  end interface stddev
 contains
   subroutine hilbert3D(x, y, z, order, bit_length, npoint)
     implicit none
@@ -96,8 +135,8 @@ contains
     ! the positions of the elements in the original order.
     integer, parameter :: i8b = 8
 
-    integer, dimension (:), intent(inout)                  :: list
-    integer, dimension (size(list)), intent(out), optional :: order
+    integer, dimension (:), intent(inout)        :: list
+    integer, dimension (size(list)), intent(out) :: order
 
     integer :: n
     ! local variable
@@ -236,90 +275,156 @@ contains
     real(kind = 8), dimension(0:ncpu), intent(in):: bound_key
     integer, dimension(ncpu), intent(out)        :: cpu_list
 
-    real(kind = 8)                               :: xmin, xmax, ymin, ymax, zmin, zmax
     logical, dimension(ncpu)                     :: cpu_read
-    integer                                      :: imin, imax, jmin, jmax, kmin, kmax, lmin
-    integer                                      :: ilevel, bit_length, maxdom
-    real(kind = 8), dimension(1:8)               :: bounding_min, bounding_max
-    real(kind = 8)                               :: dkey, dmax, deltax
-    real(kind = 8), dimension(1:1)               :: order_min
-    integer, dimension(1:8)                      :: idom, jdom, kdom, cpu_min, cpu_max
+    integer :: ncpu_read
 
-    integer :: ndom, i, impi, ncpu_read, j
-    xmin = X0(1); xmax = X1(1)
-    ymin = X0(2); ymax = X1(2)
-    zmin = X0(3); zmax = X1(3)
+    real(kind = 8), dimension(1:ndim) :: X0_tmp, X1_tmp
+    real(kind=8), dimension(3, 2, 2)  :: bounds
+    real(kind = 8), dimension(1:ndim, 2) :: X0_domains, X1_domains
+    integer :: i, j, k
 
-    dmax = max(xmax-xmin, ymax-ymin, zmax-zmin)
-    do ilevel = 1, levelmax
-       deltax = 0.5d0**ilevel
-       if (deltax.lt.dmax) exit
-    end do
-    lmin = ilevel
-    bit_length = lmin-1
-    maxdom = 2**bit_length
-    imin = 0; imax = 0; jmin = 0; jmax = 0; kmin = 0; kmax = 0
-    if (bit_length>0) then
-       imin = int(xmin*dble(maxdom))
-       imax = imin+1
-       jmin = int(ymin*dble(maxdom))
-       jmax = jmin+1
-       kmin = int(zmin*dble(maxdom))
-       kmax = kmin+1
-    endif
+    cpu_list = 0
+    ncpu_read = 0
+    bounds = 0
+    cpu_read = .false.
 
-    dkey = (dble(2**(levelmax+1)/dble(maxdom)))**ndim
-    ndom = 1
-    if (bit_length>0) ndom = 8
-    idom(1) = imin; idom(2) = imax
-    idom(3) = imin; idom(4) = imax
-    idom(5) = imin; idom(6) = imax
-    idom(7) = imin; idom(8) = imax
-    jdom(1) = jmin; jdom(2) = jmin
-    jdom(3) = jmax; jdom(4) = jmax
-    jdom(5) = jmin; jdom(6) = jmin
-    jdom(7) = jmax; jdom(8) = jmax
-    kdom(1) = kmin; kdom(2) = kmin
-    kdom(3) = kmin; kdom(4) = kmin
-    kdom(5) = kmax; kdom(6) = kmax
-    kdom(7) = kmax; kdom(8) = kmax
+    do i = 1, ndim
+       if (X0(i) < 0 .and. X1(i) < 0) then
+          bounds(i, 1, 1) = X0(i) + 1d0
+          bounds(i, 1, 2) = X1(i) + 1d0
 
-    do i = 1, ndom
-       if (bit_length>0) then
-          call hilbert3D(idom(i), jdom(i), kdom(i), order_min, bit_length, 1)
+          bounds(i, 2, 1) = -1.
+          bounds(i, 2, 2) = -1.
+       else if (X0(i) < 0) then
+          bounds(i, 1, 1) = X0(i) + 1d0
+          bounds(i, 1, 2) = 1d0
+
+          bounds(i, 2, 1) = 0d0
+          bounds(i, 2, 2) = X1(i)
+       else if (X0(i) > 1. .and. X1(i) > 1.) then
+          bounds(i, 1, 1) = X0(i) - 1d0
+          bounds(i, 1, 2) = X1(i) - 1d0
+       else if (X1(i) > 1.) then
+          bounds(i, 1, 1) = X0(i)
+          bounds(i, 1, 2) = 1d0
+
+          bounds(i, 2, 1) = 0d0
+          bounds(i, 2, 2) = X1(i) - 1d0
        else
-          order_min = 0.0d0
-       endif
-       bounding_min(i) = (order_min(1))*dkey
-       bounding_max(i) = (order_min(1)+1.0D0)*dkey
+          bounds(i, 1, 1) = X0(i)
+          bounds(i, 1, 2) = X1(i)
+
+          bounds(i, 2, 1) = -1.
+          bounds(i, 2, 2) = -1.
+       end if
     end do
 
-    cpu_min = 0; cpu_max = 0
-    do impi = 1, ncpu
-       do i = 1, ndom
-          if (   bound_key(impi-1) <= bounding_min(i).and.&
-               & bound_key(impi  ) > bounding_min(i)) then
-             cpu_min(i) = impi
-          endif
-          if (   bound_key(impi-1) < bounding_max(i).and.&
-               & bound_key(impi  ) >= bounding_max(i)) then
-             cpu_max(i) = impi
-          endif
+    do i = 1, 2
+       do j = 1, 2
+          do k = 1, 2
+             X0_tmp(1) = bounds(1, i, 1)
+             X1_tmp(1) = bounds(1, i, 2)
+             X0_tmp(2) = bounds(2, j, 1)
+             X1_tmp(2) = bounds(2, j, 2)
+             X0_tmp(3) = bounds(3, k, 1)
+             X1_tmp(3) = bounds(3, k, 2)
+             ! print*, '------------------------'
+             ! print*, X0_tmp, X1_tmp
+             call get_it(cpu_list, ncpu_read, cpu_read)
+          end do
        end do
     end do
-    ncpu_read = 0
 
-    do i = 1, ndom
-       do j = cpu_min(i), cpu_max(i)
-          if (.not. cpu_read(j)) then
-             ncpu_read = ncpu_read+1
-             cpu_list(ncpu_read) = j
-             cpu_read(j) = .true.
-          endif
-       enddo
-    enddo
+  contains
 
-    ! deallocate(cpu_read)
+    subroutine get_it(cpu_list, ncpu_read, cpu_read)
+      integer, dimension(ncpu), intent(inout)      :: cpu_list
+      logical, dimension(ncpu), intent(inout)      :: cpu_read
+      integer, intent(inout)                       :: ncpu_read
+
+      real(kind = 8)                 :: xmin, xmax, ymin, ymax, zmin, zmax
+      integer                        :: imin, imax, jmin, jmax, kmin, kmax, lmin
+      integer                        :: ilevel, bit_length, maxdom
+      real(kind = 8), dimension(1:8) :: bounding_min, bounding_max
+      real(kind = 8)                 :: dkey, dmax, deltax
+      real(kind = 8), dimension(1:1) :: order_min
+      integer, dimension(1:8)        :: idom, jdom, kdom, cpu_min, cpu_max
+
+      integer :: ndom, i, impi, j
+      xmin = X0_tmp(1); xmax = X1_tmp(1)
+      ymin = X0_tmp(2); ymax = X1_tmp(2)
+      zmin = X0_tmp(3); zmax = X1_tmp(3)
+
+      dmax = max(xmax-xmin, ymax-ymin, zmax-zmin)
+      do ilevel = 1, levelmax
+         deltax = 0.5d0**ilevel
+         if (deltax.lt.dmax) exit
+      end do
+      lmin = ilevel
+      bit_length = lmin-1
+      maxdom = 2**bit_length
+      imin = 0; imax = 0; jmin = 0; jmax = 0; kmin = 0; kmax = 0
+      if (bit_length>0) then
+         imin = int(xmin*dble(maxdom))
+         imax = imin+1
+         jmin = int(ymin*dble(maxdom))
+         jmax = jmin+1
+         kmin = int(zmin*dble(maxdom))
+         kmax = kmin+1
+      endif
+
+      dkey = (dble(2**(levelmax+1)/dble(maxdom)))**ndim
+      ndom = 1
+      if (bit_length>0) ndom = 8
+      idom(1) = imin; idom(2) = imax
+      idom(3) = imin; idom(4) = imax
+      idom(5) = imin; idom(6) = imax
+      idom(7) = imin; idom(8) = imax
+      jdom(1) = jmin; jdom(2) = jmin
+      jdom(3) = jmax; jdom(4) = jmax
+      jdom(5) = jmin; jdom(6) = jmin
+      jdom(7) = jmax; jdom(8) = jmax
+      kdom(1) = kmin; kdom(2) = kmin
+      kdom(3) = kmin; kdom(4) = kmin
+      kdom(5) = kmax; kdom(6) = kmax
+      kdom(7) = kmax; kdom(8) = kmax
+
+      do i = 1, ndom
+         if (bit_length>0) then
+            call hilbert3D(idom(i), jdom(i), kdom(i), order_min, bit_length, 1)
+         else
+            order_min = 0.0d0
+         endif
+         bounding_min(i) = (order_min(1))*dkey
+         bounding_max(i) = (order_min(1)+1.0D0)*dkey
+      end do
+
+      cpu_min = 0; cpu_max = 0
+      do impi = 1, ncpu
+         do i = 1, ndom
+            if (   bound_key(impi-1) <= bounding_min(i).and.&
+                 & bound_key(impi  ) > bounding_min(i)) then
+               cpu_min(i) = impi
+            endif
+            if (   bound_key(impi-1) < bounding_max(i).and.&
+                 & bound_key(impi  ) >= bounding_max(i)) then
+               cpu_max(i) = impi
+            endif
+         end do
+      end do
+
+      do i = 1, ndom
+         do j = cpu_min(i), cpu_max(i)
+            if (.not. cpu_read(j)) then
+               ncpu_read = ncpu_read+1
+               cpu_list(ncpu_read) = j
+               cpu_read(j) = .true.
+            endif
+         enddo
+      enddo
+
+      ! deallocate(cpu_read)
+    end subroutine get_it
   end subroutine get_cpu_list
 
   function indexOf(element, array)
@@ -442,8 +547,8 @@ contains
          act='store', def='4096')
     call cli%add(switch='--halo-to-cpu', help='Halo to cpu list, binary', &
          act='store', def='lists/halo_to_cpu.00002.m<1e12.dat.bin')
-    call cli%add(switch='--n-probe-particle', help='When using random particles, number of random particle to pick.', &
-         act='store', def='50')
+    call cli%add(switch='--percent-probe-particle', help='When using random particles, percent of random particle to pick.', &
+         act='store', def='5')
     call cli%add(switch='--output-path', help='Path of the output', &
          act='store', def='/data52/Horizon-AGN/OUTPUT_DIR')
     call cli%add(switch='--output-number', help='Number of the output', &
@@ -476,5 +581,83 @@ contains
 
   end subroutine fill
 
-
 end module misc
+!-------------------------------------
+! To interface
+!-------------------------------------
+subroutine minmax_r (array, min, max)
+  implicit none
+
+  real(kind=8), intent(in), dimension(:) :: array
+
+  real(kind=8), intent(out) :: min, max
+  integer :: i
+
+  do i = 1, size(array)
+     if (array(i) > min) min = array(i)
+     if (array(i) < max) max = array(i)
+  end do
+end subroutine minmax_r
+
+subroutine minmax_i (array, min, max)
+  implicit none
+
+  integer, intent(in), dimension(:) :: array
+
+  integer, intent(out) :: min, max
+  integer :: i
+
+  do i = 1, size(array)
+     if (array(i) > min) min = array(i)
+     if (array(i) < max) max = array(i)
+  end do
+end subroutine minmax_i
+
+
+subroutine mean_1 (array, mean, n)
+  integer, intent(in) :: n
+  real(kind=8), intent(in), dimension(n) :: array
+  real(kind=8), intent(out)              :: mean
+
+  mean = sum(array) / size(array)
+end subroutine mean_1
+
+subroutine mean_2 (array, mean, n, m)
+  integer, intent(in) :: n, m
+  real(kind=8), intent(in), dimension(n, m) :: array
+  real(kind=8), intent(out), dimension(n)   :: mean
+  real(kind=8), dimension(m)   :: tmp_arr
+  integer :: i
+
+  do i = 1, n
+     tmp_arr = array(i, :)
+     call mean_1(tmp_arr, mean(i), m)
+  end do
+end subroutine mean_2
+
+subroutine stddev_1 (array, std, n)
+  integer, intent(in) :: n
+  real(kind=8), intent(in), dimension(n) :: array
+  real(kind=8), intent(out)              :: std
+
+  real(kind=8), dimension(n) :: tmp_array
+  real(kind=8) :: mean
+
+  call mean_1(array, mean, n)
+  tmp_array = (array - mean)**2
+  call mean_1(tmp_array, std, n)
+  std = sqrt(std)
+end subroutine stddev_1
+
+subroutine stddev_2 (array, std, n, m)
+  integer, intent(in) :: n, m
+  real(kind=8), intent(in), dimension(n, m) :: array
+  real(kind=8), intent(out), dimension(n)   :: std
+  real(kind=8), dimension(m)   :: tmp_arr
+  integer :: i
+
+  do i = 1, n
+     tmp_arr = array(i, :)
+     call stddev_1(tmp_arr, std(i), m)
+  end do
+end subroutine stddev_2
