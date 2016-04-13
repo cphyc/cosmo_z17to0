@@ -1,8 +1,8 @@
 [modes]
-modes=dist dist-no-parallel debug
+modes=dist dist-no-parallel debug gnu
 
 [common-variables]
-$cflags=-c
+$cflags=-c -i4 -r8
 $lflags= -parallel
 
 [template-dir]
@@ -10,25 +10,30 @@ mod_dir=./mod/
 build_dir=./build/
 exec_dir=./bin/
 
+[gnu]
+templte=template-dir
+compiler=gnu
+cflags=-c
+
 [dist-no-parallel]
 template=template-dir
 help=Compile for running
 compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -xHost
-lflags=$lflags -mkl=sequential
+cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -qopenmp-stubs -xHost
+lflags=$lflags -qopenmp-stubs
 jobs=4
 
 [dist]
 template=template-dir
 help=Compile for running
 compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -openmp -xHost -parallel
-lflags=$lflags -mkl=parallel -openmp -parallel
+cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -qopenmp -xHost -parallel
+lflags=$lflags -qopenmp -parallel
 jobs=4
 
 [debug]
 template=template-dir
-help=Compile for debugging
+1help=Compile for debugging
 compiler=intel
-cflags=$cflags -i4 -r8 -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs
-lflags=$lflags -mkl=sequential
+cflags=$cflags -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs
+lflags=$lflags -g -O0 -debug
