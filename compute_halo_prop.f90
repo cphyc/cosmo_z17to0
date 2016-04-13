@@ -143,7 +143,7 @@ program compute_halo_prop
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LDM, idDM, members)
   print*, '    …red!'
-  deallocate(rvirDM, mDM, mvirDM, TvirDM, hlevel, LDM)
+  deallocate(rvirDM, mvirDM, TvirDM, hlevel, LDM)
 
   print*, ''
   call cli%get(switch='--halo-to-cpu', val=tmp_char)
@@ -165,7 +165,7 @@ program compute_halo_prop
   print*, 'Computing inertia tensor'
   open(unit=10, file=trim(tmp_char))
   open(unit=123, file='missing_parts')
-  write(10, '(a9, 10a13)') 'id', 'mass', 'xx', 'xy', 'xz', 'yx', 'yy', 'yz', 'zx', 'zy', 'zz'
+  write(10, '(a12, 13a14)') 'id', 'mass', 'x', 'y', 'z', 'size', 'xx', 'xy', 'xz', 'yx', 'yy', 'yz', 'zx', 'zy', 'zz'
   halo_counter = 1
   allocate(I_t(3, 3, nDM))
   I_t = 0
@@ -174,6 +174,10 @@ program compute_halo_prop
   do halo_i = 1, nDM
      cpu_read = .false.
      if (halo_to_cpu(halo_i, 1) == 0) then
+        cycle
+     end if
+
+     if (mDM(halo_i) < param_min_m .or. mDM(halo_i) > param_max_m) then
         cycle
      end if
 
@@ -200,10 +204,10 @@ program compute_halo_prop
      !-------------------------------------
      ! find missing particles, if any (trigger for 1% of missing particles)
      !-------------------------------------
-     factor = 1d-3
+     factor = 0
      call correct_positions(tmp_pos)
-     do while (1d0*counter / members(halo_i)%parts < 0.99)
-        factor = factor * 2d0
+     do while (1d0*counter / members(halo_i)%parts < 0.95)
+        factor = factor + 1d-4
         call compute_mean(tmp_pos, pos_mean)
 
         allocate(tmp_arr(infos%ndim), tmp_arr2(infos%ndim))
@@ -211,23 +215,25 @@ program compute_halo_prop
         tmp_arr2 = pos_mean + factor
         call get_cpu_list(tmp_arr, tmp_arr2, infos%levelmax, infos%bound_key, &
              cpu_list, infos%ncpu, infos%ndim)
-        print*, 'W: missing particles, looking them in '
-        print*, tmp_arr
-        print*, tmp_arr2
-        print*, infos%levelmax, infos%ncpu, infos%ndim
+        ! print*, 'W: missing particles, looking them in '
+        ! print*, tmp_arr
+        ! print*, tmp_arr2
+        ! print*, infos%levelmax, infos%ncpu, infos%ndim
         deallocate(tmp_arr, tmp_arr2)
 
         do i = 1, infos%ncpu
            if (cpu_list(i) > 0) then
               if (.not. cpu_read(cpu_list(i))) then
-                 print*, 'Reading further', cpu_list(i)
+                 ! print*, 'Reading further', cpu_list(i)
               end if
            end if
         end do
         do i = 1, infos%ncpu
            if (cpu_list(i) > 0) then
-              if (.not. cpu_read(cpu_list(i)) .and. &
-                   (counter /= members(halo_i)%parts)) then
+              if (.not. cpu_read(cpu_list(i))) then
+                 if (counter == members(halo_i)%parts) then
+                    exit
+                 end if
                  cpu = cpu_list(i)
                  call treat_cpu(tmp_pos, tmp_mass, cpu)
                  cpu_read(cpu_list(i)) = .true.
@@ -247,7 +253,7 @@ program compute_halo_prop
      allocate(tmp_dblarr(3, 3))
      call compute_inertia_tensor(tmp_mass, tmp_pos, tmp_dblarr)
      I_t(:, :, halo_i) = tmp_dblarr
-     write(10, '(i9, 10ES13.6e2)') idDM(halo_i), mtot, tmp_dblarr
+     write(10, '(i12, 20ES14.6e2)') idDM(halo_i), mtot, pos_mean, factor, tmp_dblarr
      deallocate(tmp_dblarr)
 
      deallocate(tmp_pos, tmp_mass)
@@ -292,7 +298,7 @@ contains
     !-------------------------------------
     ! Reading cpu
     !-------------------------------------
-    print*, 'Reading cpu', cpu, '(', counter, '/', members(halo_i)%parts, ')'
+    ! print*, 'Reading cpu', cpu, '(', counter, '/', members(halo_i)%parts, ')'
     call read_particle(param_output_path, param_output_number, cpu, nstar, pos, vel, m,&
          ids, birth_date, ndim, nparts)
     allocate(order(nparts))
