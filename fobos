@@ -35,5 +35,5 @@ jobs=4
 template=template-dir
 1help=Compile for debugging
 compiler=intel
-cflags=$cflags -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs
+cflags=$cflags -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu
 lflags=$lflags -g -O0 -debug
