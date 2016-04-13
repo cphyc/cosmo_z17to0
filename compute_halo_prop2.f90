@@ -94,6 +94,10 @@ program compute_halo_prop
   ! Read parameters
   !-------------------------------------
   call parse_params(cli)
+  call cli%add(switch='--margin', help='margin', &
+       act='store', def='0.15')
+  call cli%add(switch='--nstep', help='Nstep', &
+       act='store', def='4')
   call cli%get(switch='--cpu-to', val=param_to)
   call cli%get(switch='--cpu-from', val=param_from)
   call cli%get(switch='--min-mass', val=param_min_m)
@@ -101,6 +105,8 @@ program compute_halo_prop
   call cli%get(switch='--output-path', val=param_output_path)
   call cli%get(switch='--output-number', val=param_output_number)
   call cli%get(switch='--verbose', val=param_verbosity)
+  call cli%get(switch='--margin', val=margin)
+  call cli%get(switch='--nstep', val=nstep)
 
   !-------------------------------------
   ! Read lists
@@ -183,7 +189,7 @@ program compute_halo_prop
   margin  = 0.10
   nstep   = 1
 
-  max_nparts = 1e9
+  max_nparts = 2**30
 
   allocate (halo_found_mask(nDM))
   halo_found_mask = .false.
