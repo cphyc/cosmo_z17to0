@@ -1,4 +1,6 @@
 module compute
+  use misc, only : meanval
+
   implicit none
 
   private
@@ -20,6 +22,9 @@ contains
     real(kind=8), dimension(3) :: I_t_diag, tau
     real(kind=8), dimension(2) :: E
     real(kind=8), dimension(max(1, opt_lwork)) :: work
+
+    real(kind=8), dimension(size(pos, 1)) :: tmp_mean
+    real(kind=8), dimension(size(pos, 1), size(pos, 2)) :: corr_pos
     real(kind=8) :: mtot, tmp
 
     integer :: i, j, k, info
@@ -30,14 +35,19 @@ contains
 
     mtot = sum(mass)
 
-    I_t = 0
+    call meanval(pos, tmp_mean, ndim, nparts)
+    do i = 1, ndim
+       corr_pos(i, :) = pos(i, :) - tmp_mean(i)
+    end do
+
+    I_t = 0d0
 
     !-------------------------------------
     ! Compute the tensor
     !-------------------------------------
     do i = 1, ndim
        do j = i, ndim
-          tmp = sum(mass(:)*pos(i, :)*pos(j, :)) / mtot
+          tmp = sum(mass(:)*corr_pos(i, :)*corr_pos(j, :)) / mtot
           I_t(i, j) = tmp + I_t(i, j)
           I_t(j, i) = tmp + I_t(i, j)
        end do
@@ -60,7 +70,7 @@ contains
     ndim = size(pos, 1)
     nparts = size(pos, 2)
 
-    span = maxval(pos, 1) - minval(pos, 1)
+    span = maxval(pos, 2) - minval(pos, 2)
 
     !-------------------------------------
     ! If the particles have a separation > 0.5
@@ -68,12 +78,13 @@ contains
     !-------------------------------------
     do dim = 1, 3
        if (span(dim) > 0.5) then
-          print*, 'Correcting on dimension', dim, 'span:', span
+          print*, 'Before (', dim, '):', span
           do part = 1, nparts
              if (pos(dim, part) > 0.5) then
                 pos(dim, part) = pos(dim, part) - 1d0
              end if
           end do
+          print*, 'after:', span
        end if
     end do
   end subroutine correct_positions

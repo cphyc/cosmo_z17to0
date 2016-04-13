@@ -555,6 +555,9 @@ contains
          act='store', def='2')
     call cli%add(switch='--output', switch_ab='-o', help='Name of the output file', &
          act='store', def='data.out')
+    call cli%add(switch='--verbose', help='Verbosity', &
+         act='store', def='0')
+
 
   end subroutine parse_params
 
