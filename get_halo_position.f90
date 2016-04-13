@@ -13,7 +13,7 @@ program sort_galaxy
        outfile, halo_to_cpu_file, mergertree_file
   integer            :: param_from, param_to
   integer, parameter :: NCPU_PER_HALO = 10
-  integer            :: nparticle_to_probe_halo
+  integer            :: nparticle_to_probe_halo, frac_particle_to_probe
 
   type(command_line_interface) :: cli
 
@@ -49,7 +49,7 @@ program sort_galaxy
   integer                                    :: ndim, nparts
   real(kind=8), dimension(:, :), allocatable :: pos, vel
   integer                                    :: nstar, halo_found
-  integer,      dimension(:), allocatable    :: ids, order
+  integer,      dimension(:), allocatable    :: ids, order, particles_found
   integer, dimension(:, :), allocatable      :: halo_to_cpu
   real(kind=8), dimension(:), allocatable    :: m, birth_date
   !-------------------------------------
@@ -79,7 +79,7 @@ program sort_galaxy
   call cli%get(switch='--association-list', val=associations_filename)
   call cli%get(switch='--brick', val=brick_file)
   call cli%get(switch='--info-file', val=info_file)
-  call cli%get(switch='--n-probe-particle', val=nparticle_to_probe_halo)
+  call cli%get(switch='--percent-probe-particle', val=frac_particle_to_probe)
   print*, param_min_m
 
   !-------------------------------------
@@ -129,7 +129,6 @@ program sort_galaxy
        & hlevel, LDM, idDM, members)
   print*, '    …red!'
 
-  allocate(tmp_arr(nparticle_to_probe_halo))
   halo_to_cpu = 0
   tmp_int2 = 0
 
@@ -137,12 +136,16 @@ program sort_galaxy
      param_to = infos%ncpu + param_to + 1
   end if
 
+  !allocate(particles_found(nDM))
   !$OMP PARALLEL DO PRIVATE(halo_found, tmp_char, i, j, tmp_real, tmp_int, ndim, nparts, unit) &
-  !$OMP PRIVATE(order, pos, vel, ids, m, birth_date, tmp_arr) SCHEDULE(guided, 1)
+  !$OMP PRIVATE(order, pos, vel, ids, m, birth_date, tmp_arr, nparticle_to_probe_halo) &
+  !$OMP SCHEDULE(guided, 5)
   do cpu = param_from, param_to
      write(tmp_char, '(i0.5)') cpu
      tmp_char = "/data52/Horizon-AGN/OUTPUT_DIR/output_00002/part_00002.out" // trim(tmp_char)
 
+     ! call read_particle(param_output_path, param_output_number, cpu, nstar, pos, vel, m,&
+     !      ids, birth_date, ndim, nparts)
      call read_particle_header(trim(tmp_char), ndim, nparts, unit)
      allocate(pos(ndim, nparts), vel(ndim, nparts), ids(nparts), m(nparts), birth_date(nparts))
      call read_particle_data(ndim, nparts, unit, nstar, pos, vel, m, ids, birth_date)
@@ -153,11 +156,14 @@ program sort_galaxy
      deallocate(order)
 
      halo_found = 0
-
      do i = 1, nDM
         if (mDM(i) < param_min_m .or. mDM(i) > param_max_m) then
            cycle
         end if
+        nparticle_to_probe_halo = max(50, &
+             floor(frac_particle_to_probe * members(i)%parts / 100.))
+        allocate(tmp_arr(nparticle_to_probe_halo))
+
         ! Pick 10 random particles and see if it's in the CPU
         do j = 1, nparticle_to_probe_halo
            call random_number(tmp_real)
@@ -174,6 +180,8 @@ program sort_galaxy
               exit
            end if
         end do
+
+        deallocate(tmp_arr)
      end do
      !$OMP ATOMIC
      tmp_int2 = tmp_int2 + 1
@@ -182,8 +190,15 @@ program sort_galaxy
      deallocate(ids)
   end do
   !$OMP END PARALLEL DO
-  deallocate(tmp_arr)
 
+  ! !-------------------------------------
+  ! ! Find missing particles
+  ! !-------------------------------------
+  ! do i = 1, nDM
+  !    if (particles_found(i) /= members(i)%parts) then
+  !       ! Missing particle :(
+  !    end if
+  ! end do
 
   !-------------------------------------
   ! Simplify columns (find first empty column)
@@ -215,6 +230,17 @@ program sort_galaxy
   call write_list(trim(tmp_char) // '.bin', nDM, tmp_int, halo_to_cpu)
 
 contains
+  subroutine count_particles(halo_ids, ids, count)
+    integer, intent(in), dimension(:) :: halo_ids, ids
+
+    integer, intent(out) :: count
+
+    do i = 1, size(halo_ids)
+       if (indexOf(halo_ids(i), ids) > 0) then
+          count = count + 1
+       end if
+    end do
+  end subroutine count_particles
   ! subroutine read_params ()
   !   integer            :: i,n
   !   integer            :: iargc
