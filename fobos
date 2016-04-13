@@ -1,30 +1,31 @@
 [modes]
-modes=dist dist-no-parallel debug gnu
+modes=dist dist-no-parallel debug
 
 [common-variables]
 $cflags=-c -i4 -r8
-$lflags= -parallel
+$lflags= 
 
 [template-dir]
 mod_dir=./mod/
 build_dir=./build/
 exec_dir=./bin/
 
-[gnu]
-templte=template-dir
-compiler=gnu
-cflags=-c
+[template-dist-dir]
+mod_dir=./mod/
+build_dir=./dist/
+exec_dir=./bin/
 
 [dist-no-parallel]
-template=template-dir
+template=template-dist-dir
+build_dir=./dist/
 help=Compile for running
 compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -qopenmp-stubs -xHost
-lflags=$lflags -qopenmp-stubs
+cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -xHost -qno-openmp
+lflags=$lflags -qno-openmp
 jobs=4
 
 [dist]
-template=template-dir
+template=template-dist-dir
 help=Compile for running
 compiler=intel
 cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -qopenmp -xHost -parallel
