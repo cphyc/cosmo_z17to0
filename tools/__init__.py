@@ -29,6 +29,8 @@ class Indexable(object):
             self.already_computed.extend(itertools.islice(self.it, n))
         return self.already_computed[index]
 
+    def load_all(self):
+        self.already_computed.extend(list(self.it))
 
 def check_filename(fun):
     ''' Wrapper that takes the first argument of the function call and asserts
@@ -50,8 +52,8 @@ def read_particles_wrap(filename):
     --------
     ndim, nparts, nstar, data
     '''
-    ndim, nparts = _tools.io.read_particle_header(filename)
-    nstar, [x, y, z], [vx, vy, vz], mass, ids, bd = _tools.io.read_particle_data(ndim, nparts)
+    ndim, nparts, unit = _tools.io.read_particle_header(filename)
+    nstar, [x, y, z], [vx, vy, vz], mass, ids, bd = _tools.io.read_particle_data(ndim, nparts, unit)
     data = pd.DataFrame({
         'x': x,
         'y': y,
@@ -66,17 +68,19 @@ def read_particles_wrap(filename):
     return ndim, nparts, nstar, data
 
 @check_filename
-def read_brick_wrap(filename, dm_type=True):
+def read_brick_wrap(filename, dm_type=True, low_mem=False, preload=False):
     ''' Read a brick file.
     Params:
     -------
     filename: string, the brick file
     dm_type: boolean, True if dark matter brick file
+    low_mem: boolean, if True, keep minimum data
 
     Return:
     -------
     res: pandas.DataFrame containing all the information
     '''
+
     def tmp():
         ff = FortranFile(filename)
         h = {}
@@ -113,7 +117,17 @@ def read_brick_wrap(filename, dm_type=True):
                 infos["rdum"] = ff.read_reals(dtype=np.int32)
                 infos["density"] = ff.read_reals(dtype=np.int32)
 
-            yield infos
+            if low_mem:
+                yield {
+                    "nparts": infos["nparts"],
+                    "members": infos['members']
+                }
+            else:
+                yield infos
+        ff.close()
+    ind = Indexable(tmp())
+    if preload:
+        ind.load_all()
     return Indexable(tmp())
 
 @check_filename
