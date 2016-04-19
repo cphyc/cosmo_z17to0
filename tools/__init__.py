@@ -9,9 +9,8 @@ io = _tools.io
 misc = _tools.misc
 
 class Indexable(object):
-
     def __init__(self, it):
-        self.it = iter(it)
+        self.it = it
         self.already_computed = []
 
     def __iter__(self):
@@ -26,7 +25,8 @@ class Indexable(object):
             max_idx = index
         n = max_idx - len(self.already_computed) + 1
         if n > 0:
-            self.already_computed.extend(itertools.islice(self.it, n))
+            nexts = [next(self.it) for _ in range(n)]
+            self.already_computed.extend(nexts)
         return self.already_computed[index]
 
     def load_all(self):
@@ -40,6 +40,7 @@ def check_filename(fun):
             raise IOError('No such file or directory: \'{}\''.format(filename))
         else:
             return fun(filename, *args, **kwargs)
+    wrapped.__doc__ = fun.__doc__
     return wrapped
 
 @check_filename
@@ -92,7 +93,7 @@ def read_brick_wrap(filename, dm_type=True, low_mem=False, preload=False, tqdm=l
         h["age_univ"] = ff.read_reals(dtype=np.int32)
         h["n_halos"], h["n_subhalos"] = ff.read_ints()
 
-        for i in range(h["n_halos"] + h["n_subhalos"]):
+        for i in tqdm(range(h["n_halos"] + h["n_subhalos"])):
             infos = {
                 "header": h
             }
@@ -100,7 +101,7 @@ def read_brick_wrap(filename, dm_type=True, low_mem=False, preload=False, tqdm=l
             infos["members"] = ff.read_ints()
             infos["idh"] = ff.read_ints()
             infos["timestep"] = ff.read_ints()
-            infos["mylevel"], infos["hosthalo"], infos["hostsub"], infos["nbsub"], infos["nextsub"] = ff.read_ints()
+            infos["hlevel"], infos["hosthalo"], infos["hostsub"], infos["nbsub"], infos["nextsub"] = ff.read_ints()
 
             infos["mhalo"] = ff.read_reals(dtype=np.int32)
             infos["pos"] = ff.read_reals(dtype=np.int32)
@@ -118,11 +119,19 @@ def read_brick_wrap(filename, dm_type=True, low_mem=False, preload=False, tqdm=l
                 infos["rdum"] = ff.read_reals(dtype=np.int32)
                 infos["density"] = ff.read_reals(dtype=np.int32)
 
-            if low_mem:
-                yield {
-                    "nparts": infos["nparts"],
-                    "members": infos['members']
-                }
+            if low_mem != None:
+                try:
+                    keys = list(low_mem)
+                except:
+                    keys = ['nparts', 'members']
+
+                tmp = {}
+                for key in keys:
+                    try:
+                        tmp[key] = infos[key]
+                    except KeyError:
+                        print('Invalid key {}, can be any of', infos['keys'])
+                yield tmp
             else:
                 yield infos
         ff.close()
