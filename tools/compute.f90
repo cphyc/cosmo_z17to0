@@ -78,13 +78,11 @@ contains
     !-------------------------------------
     do dim = 1, 3
        if (span(dim) > 0.5) then
-          print*, 'Before (', dim, '):', span
           do part = 1, nparts
              if (pos(dim, part) > 0.5) then
                 pos(dim, part) = pos(dim, part) - 1d0
              end if
           end do
-          print*, 'after:', span
        end if
     end do
   end subroutine correct_positions
