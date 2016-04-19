@@ -218,7 +218,7 @@ program compute_halo_prop
         end if
      end do
 
-     stop_flag = .true.
+     stop_flag = .false.
      ! Read all cpus
      !$OMP PARALLEL DO DEFAULT(none) &
      !$OMP SHARED(members, X0, X1, stop_flag, counter, infos, halo_i, cpu_read, param_verbosity) &
