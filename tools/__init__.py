@@ -68,13 +68,14 @@ def read_particles_wrap(filename):
     return ndim, nparts, nstar, data
 
 @check_filename
-def read_brick_wrap(filename, dm_type=True, low_mem=False, preload=False):
+def read_brick_wrap(filename, dm_type=True, low_mem=False, preload=False, tqdm=lambda e: e):
     ''' Read a brick file.
     Params:
     -------
     filename: string, the brick file
     dm_type: boolean, True if dark matter brick file
-    low_mem: boolean, if True, keep minimum data
+    low_mem: don't save all data. If a list of keys is given, yield the keys for each halo,
+    else, yield only the members and the number of particles
 
     Return:
     -------
