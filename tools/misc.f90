@@ -557,6 +557,8 @@ contains
          act='store', def='data.out')
     call cli%add(switch='--verbose', help='Verbosity', &
          act='store', def='0')
+    call cli%add(switch='--halo-i', help='Halo number', &
+         act='store', def='-1')
 
 
   end subroutine parse_params
