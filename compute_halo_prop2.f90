@@ -186,9 +186,6 @@ program compute_halo_prop
   allocate(I_t(3, 3, nDM))
   I_t = 0
 
-  margin  = 0.10
-  nstep   = 1
-
   max_nparts = 2**30
 
   allocate (halo_found_mask(nDM))
@@ -198,7 +195,7 @@ program compute_halo_prop
   !-------------------------------------
   !$OMP PARALLEL DO DEFAULT(firstprivate) &
   !$OMP SHARED(infos, members, idDM, posDM, halo_found_mask, margin) &
-  !$OMP PRIVATE(x, y, z, cpu_list)
+  !$OMP PRIVATE(x, y, z, cpu_list, i)
   do x = 0, nstep-1
      do y = 0, nstep-1
         do z = 0, nstep-1
@@ -238,9 +235,9 @@ program compute_halo_prop
                       ', nparts=', nparts, ', loaded=',part_counter,')'
               end if
               do i = 1, nparts
-                 if ( pos(1, i) > X0(1) .and. pos(1, i) < X1(1) .and. &
-                      pos(2, i) > X0(2) .and. pos(2, i) < X1(2) .and. &
-                      pos(3, i) > X0(3) .and. pos(3, i) < X1(3) .and. &
+                 if ( pos(1, i) >= X0(1) .and. pos(1, i) < X1(1) .and. &
+                      pos(2, i) >= X0(2) .and. pos(2, i) < X1(2) .and. &
+                      pos(3, i) >= X0(3) .and. pos(3, i) < X1(3) .and. &
                       ids(i) > 0 & ! only keep DM particles
                     ) then
                     part_counter = part_counter + 1
@@ -263,9 +260,9 @@ program compute_halo_prop
            !-------------------------------------
            do halo_i = 1, nDM
               if ( mDM(halo_i) > param_min_m .and. mDM(halo_i) < param_max_m .and. &
-                   posDM(1, halo_i) > X0(1) .and. posDM(1, halo_i) < X1(1) .and. &
-                   posDM(2, halo_i) > X0(2) .and. posDM(2, halo_i) < X1(2) .and. &
-                   posDM(3, halo_i) > X0(3) .and. posDM(3, halo_i) < X1(3) .and. &
+                   posDM(1, halo_i) >= X0(1) .and. posDM(1, halo_i) < X1(1) .and. &
+                   posDM(2, halo_i) >= X0(2) .and. posDM(2, halo_i) < X1(2) .and. &
+                   posDM(3, halo_i) >= X0(3) .and. posDM(3, halo_i) < X1(3) .and. &
                    (.not. halo_found_mask(halo_i)) ) then
                  allocate(pos_in_halo(infos%ndim, members(halo_i)%parts), &
                       m_in_halo(members(halo_i)%parts))
@@ -293,7 +290,7 @@ program compute_halo_prop
                     allocate(tmp_dblarr(3, 3))
                     call compute_inertia_tensor(m_in_halo, pos_in_halo, tmp_dblarr)
                     I_t(:, :, halo_i) = tmp_dblarr
-                    write(10, '(i12, 11ES14.6e2)') idDM(halo_i), mtot, &
+                    write(10, '(i12, 11ES14.6e2)') idDM(halo_i), mDM(halo_i), &
                          pos_mean(1), pos_mean(2), pos_mean(3), &
                          tmp_dblarr(1, 1), tmp_dblarr(1, 2), tmp_dblarr(1, 3), &
                                            tmp_dblarr(2, 2), tmp_dblarr(2, 3), &
