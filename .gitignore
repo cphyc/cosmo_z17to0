@@ -11,3 +11,8 @@ bloom_filters/
 *.pyf
 third_party/
 mod/
+.ipynb_checkpoints/
+bins/
+build/
+logs/
+#*#
