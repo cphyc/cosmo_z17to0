@@ -196,6 +196,7 @@ program compute_halo_prop
   !-------------------------------------
   margin = 0
   counter = 0
+  pos_in_halo = 0
   do while (counter < members(halo_i)%parts)
      if (param_verbosity >= 3) then
         write(*, '(a,i10,a,i10,a,i10,a)') 'halo n°', halo_i, ' is incomplete: ', &
@@ -264,13 +265,10 @@ program compute_halo_prop
      end do
      !$OMP END PARALLEL DO
   end do
-  write(*, *) '----'
-  write(*, '(a,i5,a,i5,a,i5,a,i5,a,i5,a)') 'Reading cpu n°', cpu_list(cpu),&
-       ' (cpu=', cpu, '/', n_cpu_per_halo, &
-       ', nparts=', counter, '/', members(halo_i)%parts,')'
 
   call correct_positions(pos_in_halo)
 
+  print*, 'all found :D'
   do i = 1, members(halo_i)%parts
      write(10, '(i12, 3ES14.6e2)') i, pos_in_halo(:, i)
   end do
