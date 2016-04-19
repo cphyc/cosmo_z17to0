@@ -9,10 +9,11 @@ program compute_halo_prop
   ! Parameters
   !-------------------------------------
   character(len=200) :: ramses_output_end, ramses_output_start, gal_list_filename, associations_filename, dm_halo_list_filename, brick_file, info_file_end, info_file_start, outfile, halo_to_cpu_file, mergertree_file, param_output_path
-  integer :: param_from, param_to, param_output_number
+  integer :: param_from, param_to, param_output_number, param_halo_i
   integer, parameter :: NPARTICLE_TO_PROBE_HALO = 50, NCPU_PER_HALO = 10
   real(kind=8) :: param_min_m, param_max_m
   integer :: param_verbosity
+  logical :: stop_flag
 
   type(command_line_interface) :: cli
   !-------------------------------------
@@ -72,7 +73,7 @@ program compute_halo_prop
   !-------------------------------------
   ! Tmp variables
   !-------------------------------------
-  integer                                   :: i, j, cpu, i1, i2, counter, cpu_i, x, y, z
+  integer                                   :: i, j, cpu, i1, i2, counter, x, y, z
   integer                                   :: tmp_int, unit, tmp_int2, index
   character(len=200)                        :: tmp_char
   real                                      :: tmp_real, factor
@@ -97,7 +98,7 @@ program compute_halo_prop
   call cli%get(switch='--output-path', val=param_output_path)
   call cli%get(switch='--output-number', val=param_output_number)
   call cli%get(switch='--verbose', val=param_verbosity)
-  call cli%get(switch='--halo-i', val=halo_i)
+  call cli%get(switch='--halo-i', val=param_halo_i)
 
   !-------------------------------------
   ! Read lists
@@ -175,31 +176,100 @@ program compute_halo_prop
 
   cpu_read = .false.
 
-  if (halo_i <= 0) then
+  if (param_halo_i <= 0) then
      print*, 'Halo_i parameter must be positive.'
      stop 0
   end if
 
-  allocate(pos_in_halo(infos%ndim, members(halo_i)%parts))
+  !-------------------------------------
+  ! Find the index of the halo given
+  !-------------------------------------
+  halo_i = indexOf(param_halo_i, idDM)
+  if (halo_i <= 0) then
+     print*, 'Halo not found. Stopping'
+     stop
+  end if
 
-  do cpu_i = 1, infos%ncpu
-     if (param_verbosity > 1) then
-        write(*, '(a,i5,a,i5)') 'Reading cpu n°', cpu_i, '/', infos%ncpu
+  allocate(pos_in_halo(infos%ndim, members(halo_i)%parts))
+  !-------------------------------------
+  ! Iterate until all the particles are found
+  !-------------------------------------
+  margin = 0
+  counter = 0
+  do while (counter < members(halo_i)%parts)
+     if (param_verbosity >= 3) then
+        write(*, '(a,i10,a,i10,a,i10,a)') 'halo n°', halo_i, ' is incomplete: ', &
+             counter, '/', members(halo_i)%parts, ' particles'
      end if
 
-     call read_particle(param_output_path, param_output_number, cpu_i, &
-          nstar, pos, vel, m, ids, birth_date, ndim, nparts)
-     ! Filter out the particles not in halo
-     allocate(order(nparts))
-     call quick_sort(ids, order)
-     do part_i = 1, nparts
-        tmp_int = indexOf(ids(part_i), members(halo_i)%ids)
-        if (tmp_int > 0) then
-           pos_in_halo(:, tmp_int) = pos(:, part_i)
+     ! Increase margin each time
+     margin = margin + 0.01
+     X0 = posDM(:, halo_i) - margin
+     X1 = posDM(:, halo_i) + margin
+
+     ! Find the cpu for the box
+     call get_cpu_list(X0, X1, infos%levelmax, infos%bound_key, cpu_list, infos%ncpu, infos%ndim)
+     n_cpu_per_halo = 0
+
+     ! Count the number of cpus that are going to be read
+     do cpu = 1, infos%ncpu
+        if (cpu_list(cpu) > 0 .and. (.not. cpu_read(cpu))) then
+           n_cpu_per_halo = n_cpu_per_halo + 1
         end if
      end do
-     deallocate(order)
+
+     stop_flag = .true.
+     ! Read all cpus
+     !$OMP PARALLEL DO DEFAULT(none) &
+     !$OMP SHARED(members, X0, X1, stop_flag, counter, infos, halo_i, cpu_read, param_verbosity) &
+     !$OMP SHARED(n_cpu_per_halo, param_output_path, param_output_number, cpu_list) &
+     !$OMP PRIVATE(order, nparts, tmp_int, ids, m, vel, pos, nstar, birth_date, ndim) &
+     !$OMP REDUCTION(+:pos_in_halo)
+     do cpu = 1, infos%ncpu
+        if (counter == members(halo_i)%parts) then
+           stop_flag = .true.
+        end if
+        if (stop_flag) then
+           cycle
+        end if
+
+        ! for the cpus not already read
+        if (cpu_list(cpu) > 0 .and. (.not. cpu_read(cpu))) then
+           if (param_verbosity > 1) then
+              write(*, '(a,i5,a,i5,a,i5,a,i5,a,i5,a)') 'Reading cpu n°', cpu_list(cpu),&
+                   ' (cpu=', cpu, '/', n_cpu_per_halo, &
+                   ', nparts=', counter, '/', members(halo_i)%parts,')'
+           end if
+
+           ! read the particles
+           call read_particle(param_output_path, param_output_number, cpu_list(cpu), &
+                nstar, pos, vel, m, ids, birth_date, ndim, nparts)
+
+           allocate(order(nparts))
+           call quick_sort(ids, order)
+
+           ! Store the position of the particles in the halo
+           do part_i = 1, members(halo_i)%parts
+              ! tmp_int is the pos of part_i in the ids of the cpu
+              tmp_int = indexOf(members(halo_i)%ids(part_i), ids)
+              if (tmp_int > 0) then
+                 pos_in_halo(:, part_i) = pos(:, tmp_int)
+                 !$OMP ATOMIC
+                 counter = counter + 1
+              end if
+           end do
+           deallocate(order)
+           cpu_read(cpu_list(cpu)) = .true.
+        end if
+     end do
+     !$OMP END PARALLEL DO
   end do
+  write(*, *) '----'
+  write(*, '(a,i5,a,i5,a,i5,a,i5,a,i5,a)') 'Reading cpu n°', cpu_list(cpu),&
+       ' (cpu=', cpu, '/', n_cpu_per_halo, &
+       ', nparts=', counter, '/', members(halo_i)%parts,')'
+
+  call correct_positions(pos_in_halo)
 
   do i = 1, members(halo_i)%parts
      write(10, '(i12, 3ES14.6e2)') i, pos_in_halo(:, i)
