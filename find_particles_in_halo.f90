@@ -66,7 +66,7 @@ program compute_halo_prop
   real(kind=8), dimension(:,:,:), allocatable :: I_t
   real(kind=8), dimension(:), allocatable     :: m_in_halo, m_in_box
   real(kind=8), dimension(:, :), allocatable  :: pos_in_halo
-  integer, dimension(:), allocatable          :: ids_in_box
+  integer, dimension(:), allocatable          :: ids_in_box, ids_in_halo
   real(kind=8), dimension(:, :), allocatable  :: pos_in_box
   real(kind=8)                                :: mtot
   real(kind=8), dimension(3)                  :: std, pos_mean
@@ -187,10 +187,23 @@ program compute_halo_prop
      stop
   end if
 
-  allocate(pos_in_halo(infos%ndim, members(halo_i)%parts))
+  allocate(pos_in_halo(infos%ndim, members(halo_i)%parts), ids_in_halo(members(halo_i)%parts))
   center = posDM(:, halo_i)
   do j = 1, size(param_output_number_list)
      param_output_number = param_output_number_list(j)
+
+     !-------------------------------------
+     ! Reading information file
+     !-------------------------------------
+     call cli%get(switch='--output-path', val=tmp_char)
+     write(tmp_char, '(a, a, i0.5,a,i0.5,a)') trim(tmp_char), '/output_', param_output_number, &
+          '/info_', param_output_number, '.txt'
+
+     if (param_verbosity >= 2) then
+        print*, ''
+        print*, 'Reading info file "' // trim(tmp_char) // '".'
+     end if
+     call read_info_headers(tmp_char, infos)
 
      !-------------------------------------
      ! Open output file
@@ -214,6 +227,8 @@ program compute_halo_prop
      counter = 0
      pos_in_halo = 0
      do while (counter < members(halo_i)%parts)
+        ! Read information of output
+
         if (param_verbosity >= 3) then
            write(*, '(a,i10,a,i10,a,i10,a)') 'halo n°', halo_i, ' is incomplete: ', &
                 counter, '/', members(halo_i)%parts, ' particles'
@@ -228,12 +243,24 @@ program compute_halo_prop
         call get_cpu_list(X0, X1, infos%levelmax, infos%bound_key, cpu_list, infos%ncpu, infos%ndim)
         n_cpu_per_halo = 0
 
+        ! a bool flag to know if there's any unread cpu
+        tmp_bool = .false.
+
         ! Count the number of cpus that are going to be read
         do cpu = 1, infos%ncpu
            if (cpu_list(cpu) > 0) then
               n_cpu_per_halo = n_cpu_per_halo + 1
+
+              ! if there is any cpu unread in the list, mark as true
+              if (cpu_read(cpu) == .false.) then
+                 tmp_bool = .true.
+              end if
            end if
         end do
+        if (n_cpu_per_halo == infos%ncpu .and. tmp_bool == .false.) then
+           print*, 'No cpu to read!'
+           exit
+        end if
 
         stop_flag = .false.
         ! Read all cpus
@@ -241,13 +268,17 @@ program compute_halo_prop
         !$OMP SHARED(members, X0, X1, stop_flag, counter, infos, halo_i, cpu_read, param_verbosity) &
         !$OMP SHARED(n_cpu_per_halo, param_output_path, param_output_number, cpu_list) &
         !$OMP PRIVATE(order, nparts, tmp_int, ids, m, vel, pos, nstar, birth_date, ndim) &
-        !$OMP REDUCTION(+:pos_in_halo)
+        !$OMP REDUCTION(+:pos_in_halo) REDUCTION(+:ids_in_halo)&
+        !$OMP SCHEDULE(dynamic, 10)
         do cpu = 1, infos%ncpu
-           if (counter == members(halo_i)%parts) then
-              stop_flag = .true.
-           end if
            if (stop_flag) then
               cycle
+           end if
+           if (counter == members(halo_i)%parts) then
+              stop_flag = .true.
+           else if (counter > members(halo_i)%parts) then
+              print*, 'W: something weird happend, found', counter, 'instead of', members(halo_i)%parts
+              stop_flag = .true.
            end if
 
            ! for the cpus not already read
@@ -257,7 +288,6 @@ program compute_halo_prop
                       ' (cpu=', cpu, '/', n_cpu_per_halo, &
                       ', nparts=', counter, '/', members(halo_i)%parts,')'
               end if
-
               ! read the particles
               call read_particle(param_output_path, param_output_number, cpu_list(cpu), &
                    nstar, pos, vel, m, ids, birth_date, ndim, nparts)
@@ -270,6 +300,7 @@ program compute_halo_prop
                  ! tmp_int is the pos of part_i in the ids of the cpu
                  tmp_int = indexOf(members(halo_i)%ids(part_i), ids)
                  if (tmp_int > 0) then
+                    ids_in_halo(part_i)    = ids(tmp_int)
                     pos_in_halo(:, part_i) = pos(:, tmp_int)
                     !$OMP ATOMIC
                     counter = counter + 1
@@ -286,7 +317,7 @@ program compute_halo_prop
 
      print*, 'all found :D'
      do i = 1, members(halo_i)%parts
-        write(10, '(i12, 3ES14.6e2)') i, pos_in_halo(:, i)
+        write(10, '(i12, 3ES14.6e2)') ids_in_halo(i), pos_in_halo(:, i)
      end do
      close(10)
 
