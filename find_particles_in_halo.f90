@@ -85,7 +85,7 @@ program compute_halo_prop
   real(kind=8), allocatable, dimension(:,:) :: tmp_dblarr
   integer, allocatable, dimension(:)        :: tmp_iarr
   logical, dimension(4096)                  :: cpu_read
-  real(kind=8), dimension(3)                :: X0, X1
+  real(kind=8), dimension(3)                :: X0, X1, center
   real(kind=8)                              :: margin
   integer                                   :: nstep, max_nparts, step_i
 
@@ -188,6 +188,7 @@ program compute_halo_prop
   end if
 
   allocate(pos_in_halo(infos%ndim, members(halo_i)%parts))
+  center = posDM(:, halo_i)
   do j = 1, size(param_output_number_list)
      param_output_number = param_output_number_list(j)
 
@@ -197,8 +198,11 @@ program compute_halo_prop
      call cli%get(switch='--output', val=tmp_char)
      write(tmp_char, '(a,i0.5)') trim(tmp_char), param_output_number
 
-     print*, ''
-     print*, 'Working on output', param_output_number,'Writing output in ', trim(tmp_char)
+     if (param_verbosity >= 2) then
+        print*, ''
+        write(*, '(a,i5,a,a,x,a,3ES14.6e2)') 'Working on output', param_output_number, &
+             ', writing output in ', trim(tmp_char), 'center:', center
+     end if
 
      open(unit=10, file=trim(tmp_char))
      write(10, '(a9, 20a13)') 'id', 'x', 'y', 'z'
@@ -217,8 +221,8 @@ program compute_halo_prop
 
         ! Increase margin each time
         margin = margin + 0.01
-        X0 = posDM(:, halo_i) - margin
-        X1 = posDM(:, halo_i) + margin
+        X0 = center - margin
+        X1 = center + margin
 
         ! Find the cpu for the box
         call get_cpu_list(X0, X1, infos%levelmax, infos%bound_key, cpu_list, infos%ncpu, infos%ndim)
@@ -248,7 +252,7 @@ program compute_halo_prop
 
            ! for the cpus not already read
            if (cpu_list(cpu) > 0 .and. (.not. cpu_read(cpu))) then
-              if (param_verbosity > 1) then
+              if (param_verbosity >= 3) then
                  write(*, '(a,i5,a,i5,a,i5,a,i5,a,i5,a)') 'Reading cpu n°', cpu_list(cpu),&
                       ' (cpu=', cpu, '/', n_cpu_per_halo, &
                       ', nparts=', counter, '/', members(halo_i)%parts,')'
@@ -285,6 +289,9 @@ program compute_halo_prop
         write(10, '(i12, 3ES14.6e2)') i, pos_in_halo(:, i)
      end do
      close(10)
+
+     center = sum(pos_in_halo, 2) / size(pos_in_halo, 2)
   end do
-  
+
+
 end program compute_halo_prop
