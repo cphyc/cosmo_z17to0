@@ -15,20 +15,25 @@ mod_dir=./mod/
 build_dir=./dist/
 exec_dir=./bin/
 
+[template-dist-no-p-dir]
+mod_dir=./mod/
+build_dir=./dist-no-p/
+exec_dir=./bin/
+
 [dist-no-parallel]
-template=template-dist-dir
+template=template-dist-no-p-dir
 build_dir=./dist/
 help=Compile for running
 compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -xHost -qno-openmp -traceback
-lflags=$lflags -qno-openmp -traceback
+cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -xHost -traceback
+lflags=$lflags -traceback
 jobs=4
 
 [dist]
 template=template-dist-dir
 help=Compile for running
 compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -qopenmp -xHost -parallel
+cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -qopenmp -parallel
 lflags=$lflags -qopenmp -parallel
 jobs=4
 
