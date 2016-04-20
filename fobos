@@ -2,8 +2,8 @@
 modes=dist dist-no-parallel debug
 
 [common-variables]
-$cflags=-c -i4 -r8 -gen-interfaces -warn interfaces
-$lflags=
+$cflags=-c -i4 -r8 -gen-interfaces -warn interfaces -std15
+$lflags=-std15
 
 [template-dir]
 mod_dir=./mod/
@@ -22,10 +22,9 @@ exec_dir=./bin/
 
 [dist-no-parallel]
 template=template-dist-no-p-dir
-build_dir=./dist/
 help=Compile for running
 compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -xHost -traceback
+cflags=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -traceback
 lflags=$lflags -traceback
 jobs=4
 
@@ -33,7 +32,7 @@ jobs=4
 template=template-dist-dir
 help=Compile for running
 compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fast -free -cpp -qopenmp -parallel
+cflags=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -qopenmp -parallel
 lflags=$lflags -qopenmp -parallel
 jobs=4
 
