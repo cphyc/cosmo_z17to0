@@ -226,6 +226,11 @@ program compute_halo_prop
      margin = 0
      counter = 0
      pos_in_halo = 0
+
+     allocate(order(members(halo_i)%parts))
+     call quick_sort(members(halo_i)%ids, order)
+     deallocate(order)
+
      do while (counter < members(halo_i)%parts)
         ! Read information of output
 
@@ -296,12 +301,11 @@ program compute_halo_prop
               call quick_sort(ids, order)
 
               ! Store the position of the particles in the halo
-              do part_i = 1, members(halo_i)%parts
-                 ! tmp_int is the pos of part_i in the ids of the cpu
-                 tmp_int = indexOf(members(halo_i)%ids(part_i), ids)
+              do part_i = 1, nparts
+                 tmp_int = indexOf(ids(part_i), members(halo_i)%ids)
                  if (tmp_int > 0) then
-                    ids_in_halo(part_i)    = ids(tmp_int)
-                    pos_in_halo(:, part_i) = pos(:, tmp_int)
+                    ids_in_halo(tmp_int)    = ids(part_i)
+                    pos_in_halo(:, tmp_int) = pos(:, part_i)
                     !$OMP ATOMIC
                     counter = counter + 1
                  end if
