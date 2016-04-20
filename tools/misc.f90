@@ -552,7 +552,7 @@ contains
     call cli%add(switch='--output-path', help='Path of the output', &
          act='store', def='/data52/Horizon-AGN/OUTPUT_DIR')
     call cli%add(switch='--output-number', help='Number of the output', &
-         act='store', def='2', nargs='+')
+         act='store', def='1', nargs='+')
     call cli%add(switch='--output', switch_ab='-o', help='Name of the output file', &
          act='store', def='data.out')
     call cli%add(switch='--verbose', help='Verbosity', &
