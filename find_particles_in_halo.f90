@@ -287,31 +287,37 @@ program compute_halo_prop
            end if
 
            ! for the cpus not already read
-           if (cpu_list(cpu) > 0 .and. (.not. cpu_read(cpu))) then
-              if (param_verbosity >= 3) then
-                 write(*, '(a,i5,a,i5,a,i5,a,i5,a,i5,a)') 'Reading cpu n°', cpu_list(cpu),&
-                      ' (cpu=', cpu, '/', n_cpu_per_halo, &
-                      ', nparts=', counter, '/', members(halo_i)%parts,')'
-              end if
-              ! read the particles
-              call read_particle(param_output_path, param_output_number, cpu_list(cpu), &
-                   nstar, pos, vel, m, ids, birth_date, ndim, nparts)
-
-              allocate(order(nparts))
-              call quick_sort(ids, order)
-
-              ! Store the position of the particles in the halo
-              do part_i = 1, nparts
-                 tmp_int = indexOf(ids(part_i), members(halo_i)%ids)
-                 if (tmp_int > 0) then
-                    ids_in_halo(tmp_int)    = ids(part_i)
-                    pos_in_halo(:, tmp_int) = pos(:, part_i)
-                    !$OMP ATOMIC
-                    counter = counter + 1
+           if (cpu_list(cpu) > 0) then
+              if (.not. cpu_read(cpu_list(cpu))) then
+                 if (param_verbosity >= 3) then
+                    write(*, '(a,i5,a,i5,a,i5,a,i5,a,i5,a)') 'Reading cpu n°', cpu_list(cpu),&
+                         ' (cpu=', cpu, '/', n_cpu_per_halo, &
+                         ', nparts=', counter, '/', members(halo_i)%parts,')'
                  end if
-              end do
-              deallocate(order)
-              cpu_read(cpu_list(cpu)) = .true.
+                 ! read the particles
+                 call read_particle(param_output_path, param_output_number, cpu_list(cpu), &
+                      nstar, pos, vel, m, ids, birth_date, ndim, nparts)
+
+                 ! allocate(order(nparts))
+                 ! call quick_sort(ids, order)
+
+                 ! Store the position of the particles in the halo
+                 do part_i = 1, nparts
+                    tmp_int = indexOf(ids(part_i), members(halo_i)%ids)
+                    if (tmp_int > 0) then
+                       if (ids_in_halo(tmp_int) == 0) then
+                          ids_in_halo(tmp_int)    = ids(part_i)
+                          pos_in_halo(:, tmp_int) = pos(:, part_i)
+                       else
+                          print*, 'E:', tmp_int, cpu_list(cpu), part_i
+                       end if
+                       !$OMP ATOMIC
+                       counter = counter + 1
+                    end if
+                 end do
+                 ! deallocate(order)
+                 cpu_read(cpu_list(cpu)) = .true.
+              end if
            end if
         end do
         !$OMP END PARALLEL DO
