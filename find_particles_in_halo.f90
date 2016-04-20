@@ -213,7 +213,7 @@ program compute_halo_prop
 
      if (param_verbosity >= 2) then
         print*, ''
-        write(*, '(a,i5,a,a,x,a,3ES14.6e2)') 'Working on output', param_output_number, &
+        write(*, '(a,i5,a,a,1x,a,3ES14.6e2)') 'Working on output', param_output_number, &
              ', writing output in ', trim(tmp_char), 'center:', center
      end if
 
@@ -257,12 +257,12 @@ program compute_halo_prop
               n_cpu_per_halo = n_cpu_per_halo + 1
 
               ! if there is any cpu unread in the list, mark as true
-              if (cpu_read(cpu) == .false.) then
+              if (.not. cpu_read(cpu)) then
                  tmp_bool = .true.
               end if
            end if
         end do
-        if (n_cpu_per_halo == infos%ncpu .and. tmp_bool == .false.) then
+        if (n_cpu_per_halo == infos%ncpu .and. (.not. tmp_bool)) then
            print*, 'No cpu to read!'
            exit
         end if
