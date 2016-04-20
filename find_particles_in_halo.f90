@@ -171,8 +171,6 @@ program compute_halo_prop
   end do
   print*, '        Found', ntot_halo, 'halos!'
 
-  cpu_read = .false.
-
   if (param_halo_i <= 0) then
      print*, 'Halo_i parameter must be positive.'
      stop 0
@@ -190,6 +188,11 @@ program compute_halo_prop
   allocate(pos_in_halo(infos%ndim, members(halo_i)%parts), ids_in_halo(members(halo_i)%parts))
   center = posDM(:, halo_i)
   do j = 1, size(param_output_number_list)
+     !-------------------------------------
+     ! Reinit cpu_read
+     !-------------------------------------
+     cpu_read = .false.
+     
      param_output_number = param_output_number_list(j)
 
      !-------------------------------------
