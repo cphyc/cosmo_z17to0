@@ -16,3 +16,4 @@ bins/
 build/
 logs/
 #*#
+data/
