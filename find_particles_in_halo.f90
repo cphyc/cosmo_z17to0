@@ -230,7 +230,7 @@ program compute_halo_prop
 
         ! Count the number of cpus that are going to be read
         do cpu = 1, infos%ncpu
-           if (cpu_list(cpu) > 0 .and. (.not. cpu_read(cpu))) then
+           if (cpu_list(cpu) > 0) then
               n_cpu_per_halo = n_cpu_per_halo + 1
            end if
         end do
