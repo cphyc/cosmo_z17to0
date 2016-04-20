@@ -17,3 +17,5 @@ build/
 logs/
 #*#
 data/
+dist/
+dist-no-p/
