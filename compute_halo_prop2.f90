@@ -148,11 +148,7 @@ program compute_halo_prop
   nDM = nb_of_halos + nb_of_subhalos
   allocate(idDM(nDM))
   allocate(posDM(infos%ndim, nDM))
-  allocate(rvirDM(nDM))
-  allocate(mDM(nDM))
-  allocate(mvirDM(nDM))
-  allocate(TvirDM(nDM))
-  allocate(hlevel(nDM))
+  allocate(rvirDM(nDM), mDM(nDM), mvirDM(nDM), TvirDM(nDM), hlevel(nDM))
   allocate(LDM(infos%ndim, nDM))
   allocate(members(nDM))
   allocate(cpu_list(infos%ncpu))
@@ -288,6 +284,10 @@ program compute_halo_prop
 
                     mtot = sum(m_in_halo)
                     allocate(tmp_dblarr(3, 3))
+                    
+                    !-------------------------------------
+                    ! Compute I_t
+                    !-------------------------------------
                     call compute_inertia_tensor(m_in_halo, pos_in_halo, tmp_dblarr)
                     I_t(:, :, halo_i) = tmp_dblarr
                     write(10, '(i12, 11ES14.6e2)') idDM(halo_i), mDM(halo_i), &
