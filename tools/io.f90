@@ -219,18 +219,18 @@ contains
     integer, intent(in)                            :: nb_of_DM
     logical, intent(in)                            :: DM_type
     type(INFOS_T), intent(in)                      :: infos
-
-    real(kind=8), intent(out), dimension(nb_of_DM) :: mDM, rvirDM
-    real(kind=8), intent(out), dimension(nb_of_DM) :: mvirDM, TvirDM, hlevel
+ 
+    real(kind=8), intent(out), dimension(nb_of_DM)             :: mDM, rvirDM
+    real(kind=8), intent(out), dimension(nb_of_DM)             :: mvirDM, TvirDM, hlevel
     real(kind=8), intent(out), dimension(infos%ndim, nb_of_DM) :: LDM, posDM
-    integer, intent(out), dimension(nb_of_DM)      :: idDM
-    type(MEMBERS_T), dimension(nb_of_DM), intent(out) :: members
+    integer, intent(out), dimension(nb_of_DM)                  :: idDM
+    type(MEMBERS_T), dimension(nb_of_DM), intent(out)          :: members
 
-    integer                                        :: nb_of_parts, idh, mylevel, hosthalo
-    integer                                        :: hostsub, nbsub, nextsub
-    real(kind=4) :: mhalo, rvir, mvir, tvir, cvel
+    integer                             :: nb_of_parts, idh, mylevel, hosthalo
+    integer                             :: hostsub, nbsub, nextsub
+    real(kind=4)                        :: mhalo, rvir, mvir, tvir, cvel
     real(kind=4), dimension(infos%ndim) :: pos, L
-    real(kind=8)                  :: Lnorm, csound2
+    real(kind=8)                        :: Lnorm, csound2
 
 
     integer :: i, status
@@ -272,15 +272,15 @@ contains
        ! Convert back to adim units
        hlevel(i)   = mylevel
        idDM(i)     = idh
-       mDM(i)      = mhalo*1d11
-       posDM(:, i) = pos / (infos%unit_l/3.08d24)+0.5d0
-       Lnorm       = sqrt(L(1)*L(1) + L(2)*L(2) + L(3)*L(3))
+       mDM(i)      = mhalo*1d11 ! Msun
+       posDM(:, i) = pos / (infos%unit_l/3.08d24)+0.5d0  ! in [0,1]
+       Lnorm       = norm2(L)
        LDM(:, i)   = L/Lnorm
-       rvirDM(i)   = rvir / (infos%boxlen*infos%unit_l/3.08d24)
+       rvirDM(i)   = rvir / (infos%boxlen*infos%unit_l/3.08d24) ! in [0, 1]
        if(DM_type) then
-          mvirDM(i) = mvir*1d11
+          mvirDM(i) = mvir*1d11 ! Msun
        else
-          mvirDM(i) = mhalo*1d11
+          mvirDM(i) = mhalo*1d11 ! Msun
        endif
        csound2 = 6.67d-8*mvirDM(i)*2d33/(rvirDM(i)*3.08d24)
        TvirDM(i) = csound2*1.66d-24/1.666666667/1.38d-16
