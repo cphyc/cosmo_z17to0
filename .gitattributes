@@ -1,2 +1,11 @@
 *.dat filter=lfs diff=lfs merge=lfs -text
 *.png filter=lfs diff=lfs merge=lfs -text
+Analyse[[:space:]]inertia.ipynb filter=lfs diff=lfs merge=lfs -text
+cpu-halo[[:space:]]and[[:space:]]halo-cpu.ipynb filter=lfs diff=lfs merge=lfs -text
+Halo[[:space:]]properties.ipynb filter=lfs diff=lfs merge=lfs -text
+Plot[[:space:]]evolution.ipynb filter=lfs diff=lfs merge=lfs -text
+Plot[[:space:]]halo.ipynb filter=lfs diff=lfs merge=lfs -text
+Plotter.ipynb filter=lfs diff=lfs merge=lfs -text
+Untitled1.ipynb filter=lfs diff=lfs merge=lfs -text
+Untitled2.ipynb filter=lfs diff=lfs merge=lfs -text
+Untitled3.ipynb filter=lfs diff=lfs merge=lfs -text
