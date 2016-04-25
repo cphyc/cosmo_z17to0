@@ -11,6 +11,7 @@ module io
 
   type :: INFOS_T
      integer                                   :: ncpu, ndim, levelmin, levelmax
+     character(len=128)                        :: ordering
      real(kind = 8)                            :: t, aexp, unit_l, unit_t, boxlen
      real(kind = 8), dimension(:), allocatable :: bound_key
   end type INFOS_T
@@ -56,7 +57,6 @@ contains
 
     logical            :: ok
     integer            :: impi, i
-    character(len=128) :: ordering
 
     inquire(file=filename, exist=ok)
     if (.not. ok) then
@@ -86,10 +86,10 @@ contains
     read(10, '("unit_t      =",E23.15)') infos%unit_t
 
     read(10, *)
-    read(10, '("ordering type=",A80)') ordering
+    read(10, '("ordering type=",A80)') infos%ordering
     read(10, *)
 
-    if (TRIM(ordering) == 'hilbert') then
+    if (TRIM(infos%ordering) == 'hilbert') then
        if (.not. allocated(infos%bound_key)) then
           allocate(infos%bound_key(0:infos%ncpu))
        end if
