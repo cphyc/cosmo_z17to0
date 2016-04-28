@@ -230,7 +230,7 @@ program compute_halo_prop
      end if
 
      open(unit=10, file=trim(tmp_char))
-     write(10, '(a9, 20a13)') 'id', 'x', 'y', 'z', 'vx', 'vy', 'vz'
+     write(10, '(a9, 6a13)') 'id', 'x', 'y', 'z', 'vx', 'vy', 'vz'
 
      !-------------------------------------
      ! Iterate until all the particles are found
@@ -352,7 +352,7 @@ program compute_halo_prop
 
      print*, 'all found :D'
      do i = 1, members(halo_i)%parts
-        write(10, '(i12, 3ES14.6e2)') ids_in_halo(i), pos_in_halo(:, i), vel_in_halo(:, i)
+        write(10, '(i12, 6ES14.6e2)') ids_in_halo(i), pos_in_halo(:, i), vel_in_halo(:, i)
      end do
      close(10)
 
