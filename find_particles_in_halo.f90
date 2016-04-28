@@ -65,7 +65,7 @@ program compute_halo_prop
   real(kind=8), dimension(3, 3)               :: I_t_diag
   real(kind=8), dimension(:,:,:), allocatable :: I_t
   real(kind=8), dimension(:), allocatable     :: m_in_halo, m_in_box
-  real(kind=8), dimension(:, :), allocatable  :: pos_in_halo, prev_pos_in_halo
+  real(kind=8), dimension(:, :), allocatable  :: pos_in_halo, prev_pos_in_halo, vel_in_halo
   integer, dimension(:), allocatable          :: ids_in_box, ids_in_halo, prev_ids_in_halo
   real(kind=8), dimension(:, :), allocatable  :: pos_in_box
   real(kind=8)                                :: mtot
@@ -186,6 +186,7 @@ program compute_halo_prop
   end if
 
   allocate(pos_in_halo(infos%ndim, members(halo_i)%parts), &
+       vel_in_halo(infos%ndim, members(halo_i)%parts), &
        prev_pos_in_halo(infos%ndim, members(halo_i)%parts), &
        prev_ids_in_halo(members(halo_i)%parts), &
        ids_in_halo(members(halo_i)%parts))
@@ -194,7 +195,7 @@ program compute_halo_prop
   do i = 1, members(halo_i)%parts
      pos_in_halo(:, i) = posDM(:, halo_i)
   end do
- 
+
   do j = 1, size(param_output_number_list)
      !-------------------------------------
      ! Reinit cpu_read
@@ -229,7 +230,7 @@ program compute_halo_prop
      end if
 
      open(unit=10, file=trim(tmp_char))
-     write(10, '(a9, 20a13)') 'id', 'x', 'y', 'z'
+     write(10, '(a9, 20a13)') 'id', 'x', 'y', 'z', 'vx', 'vy', 'vz'
 
      !-------------------------------------
      ! Iterate until all the particles are found
@@ -243,6 +244,7 @@ program compute_halo_prop
      ids_in_halo = 0
      prev_pos_in_halo = pos_in_halo
      pos_in_halo = 0
+     vel_in_halo = 0
 
      do while (counter < members(halo_i)%parts)
         ! Read information of output
@@ -295,7 +297,7 @@ program compute_halo_prop
            !$OMP SHARED(members, X0, X1, stop_flag, counter, infos, halo_i, cpu_read, param_verbosity) &
            !$OMP SHARED(n_cpu_per_halo, param_output_path, param_output_number, cpu_list) &
            !$OMP PRIVATE(order, nparts, tmp_int, ids, m, vel, pos, nstar, birth_date, ndim) &
-           !$OMP REDUCTION(+:pos_in_halo) REDUCTION(+:ids_in_halo)&
+           !$OMP REDUCTION(+:pos_in_halo) REDUCTION(+:vel_in_halo) REDUCTION(+:ids_in_halo)&
            !$OMP SCHEDULE(dynamic, 10)
            do cpu = 1, infos%ncpu
               if (stop_flag) then
@@ -330,6 +332,7 @@ program compute_halo_prop
                           if (ids_in_halo(part_i) == 0) then
                              ids_in_halo(part_i)    = ids(tmp_int)
                              pos_in_halo(:, part_i) = pos(:, tmp_int)
+                             vel_in_halo(:, part_i) = vel(:, tmp_int)
                           else
                              print*, 'E:', tmp_int, cpu_list(cpu), part_i
                           end if
@@ -349,7 +352,7 @@ program compute_halo_prop
 
      print*, 'all found :D'
      do i = 1, members(halo_i)%parts
-        write(10, '(i12, 3ES14.6e2)') ids_in_halo(i), pos_in_halo(:, i)
+        write(10, '(i12, 3ES14.6e2)') ids_in_halo(i), pos_in_halo(:, i), vel_in_halo(:, i)
      end do
      close(10)
 
