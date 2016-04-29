@@ -327,12 +327,14 @@ program compute_halo_prop
 
                     ! Store the position of the particles in the halo
                     do part_i = 1, members(halo_i)%parts
+
+                       ! tmp_int is the position of part_i in the ids read from the cpu
                        tmp_int = indexOf(members(halo_i)%ids(part_i), ids)
                        if (tmp_int > 0) then
                           if (ids_in_halo(part_i) == 0) then
                              ids_in_halo(part_i)    = ids(tmp_int)
-                             pos_in_halo(:, part_i) = pos(:, tmp_int)
-                             vel_in_halo(:, part_i) = vel(:, tmp_int)
+                             pos_in_halo(:, part_i) = pos(:, order(tmp_int))
+                             vel_in_halo(:, part_i) = vel(:, order(tmp_int))
                           else
                              print*, 'E:', tmp_int, cpu_list(cpu), part_i
                           end if
