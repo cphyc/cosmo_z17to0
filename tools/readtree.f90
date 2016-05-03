@@ -172,9 +172,9 @@ contains
     real(kind=4)                               ::rvir, mvir, tvir, cvel, rho0, rc2
     integer(kind=4), allocatable, dimension(:) :: nb_of_halos, nb_of_subhalos
     integer(kind=4), allocatable, dimension(:) :: idfather, idson
-    real   (kind=4), allocatable, dimension(:) :: aexp, age_univ, omega_t, mfather
+    real(kind=4),    allocatable, dimension(:) :: aexp, age_univ, omega_t, mfather
     integer(kind=4), allocatable, dimension(:) :: nb_of_halos_rev, nb_of_subhalos_rev
-    real   (kind=4), allocatable, dimension(:) :: aexp_rev, age_univ_rev, omega_t_rev
+    real(kind=4),    allocatable, dimension(:) :: aexp_rev, age_univ_rev, omega_t_rev
 
     !-----------------------------------------------
     ! Lecture du fichier contenant les galaxies
@@ -190,9 +190,9 @@ contains
     read(unit_in) omega_t
     read(unit_in) age_univ
     write(*, *) nsteps, ' steps'
-    write(*, *)'list of timesteps:'
+    write(*, *) 'list of timesteps:'
     do i=1, nsteps
-       write(*, *)1d0/aexp(i)-1d0, age_univ(i)
+       write(*, *) 1d0/aexp(i)-1d0, age_univ(i)
     enddo
     write(*, *) MINVAL(nb_of_halos), MAXVAL(nb_of_halos), ' galaxies'
     write(*, *) MINVAL(nb_of_subhalos), MAXVAL(nb_of_subhalos), ' sub-galaxies'
@@ -201,11 +201,11 @@ contains
     allocate(nb_of_halos_rev(1:nsteps), nb_of_subhalos_rev(1:nsteps))
     allocate(aexp_rev(1:nsteps), omega_t_rev(1:nsteps), age_univ_rev(1:nsteps))
     do i=1, nsteps
-       nb_of_halos_rev   (nsteps-i+1)=nb_of_halos   (i)
-       nb_of_subhalos_rev(nsteps-i+1)=nb_of_subhalos(i)
-       aexp_rev    (nsteps-i+1)=aexp    (i)
-       omega_t_rev (nsteps-i+1)=omega_t (i)
-       age_univ_rev(nsteps-i+1)=age_univ(i)
+       nb_of_halos_rev(nsteps-i+1)    = nb_of_halos(i)
+       nb_of_subhalos_rev(nsteps-i+1) = nb_of_subhalos(i)
+       aexp_rev(nsteps-i+1)     = aexp(i)
+       omega_t_rev(nsteps-i+1)  = omega_t(i)
+       age_univ_rev(nsteps-i+1) = age_univ(i)
     enddo
 
     open(newunit=unit_out, file=trim(outfich), form='unformatted')
@@ -229,11 +229,11 @@ contains
 
        do istep=1, idone
 
-          ntot = nb_of_halos(istep)+nb_of_subhalos(istep)
+          ntot = nb_of_halos(istep) + nb_of_subhalos(istep)
 
           if (istep == idone) then
 
-             do j=1, ntot
+             do j = 1, ntot
                 read(unit_in) mynumber
                 read(unit_in) BushID
                 read(unit_in) mystep
@@ -263,20 +263,24 @@ contains
                 read(unit_in) nb_of_fathers
                 write(unit_out) nb_of_fathers
                 if (nb_of_fathers > 0) then
-                   allocate(idfather(1:nb_of_fathers), mfather(1:nb_of_fathers))
-                   read(unit_in) idfather
-                   read(unit_in) mfather
-                   write(unit_out) idfather(1:nb_of_fathers)
-                   write(unit_out) mfather (1:nb_of_fathers)
+                   allocate(idfather(nb_of_fathers), mfather(nb_of_fathers))
+                   read(unit_in)   idfather
+                   read(unit_in)   mfather
+
+
+                   write(unit_out) idfather
+                   write(unit_out) mfather
                    deallocate(idfather, mfather)
                 endif
 
                 read(unit_in) nb_of_sons
                 write(unit_out) nb_of_sons
+
                 if (nb_of_sons > 0) then
-                   allocate(idson(1:nb_of_sons))
-                   read(unit_in) idson
-                   write(unit_out) idson(1:nb_of_sons)
+                   allocate(idson(nb_of_sons))
+                   read(unit_in)   idson
+
+                   write(unit_out) idson
                    deallocate(idson)
                 endif
 
