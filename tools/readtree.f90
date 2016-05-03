@@ -179,28 +179,28 @@ contains
     !-----------------------------------------------
     ! Lecture du fichier contenant les galaxies
     !-----------------------------------------------
-    write(*,*)filetree
+    write(*, *) filetree
 
-    open(newunit=unit_in,file=filetree,status='old',form='unformatted')
+    open(newunit=unit_in, file=filetree, status='old', form='unformatted')
     read(unit_in) nsteps
-    allocate(nb_of_halos(1:nsteps),nb_of_subhalos(1:nsteps),aexp(1:nsteps),omega_t(1:nsteps),age_univ(1:nsteps))
+    allocate(nb_of_halos(1:nsteps), nb_of_subhalos(1:nsteps), aexp(1:nsteps), omega_t(1:nsteps), age_univ(1:nsteps))
 
-    read(unit_in) nb_of_halos(1:nsteps), nb_of_subhalos(1:nsteps)
-    read(unit_in) aexp(1:nsteps)
-    read(unit_in) omega_t(1:nsteps)
-    read(unit_in) age_univ(1:nsteps)
-    write(*,*)nsteps,' steps'
-    write(*,*)'list of timesteps:'
-    do i=1,nsteps
-       write(*,*)1d0/aexp(i)-1d0,age_univ(i)
+    read(unit_in) nb_of_halos, nb_of_subhalos
+    read(unit_in) aexp
+    read(unit_in) omega_t
+    read(unit_in) age_univ
+    write(*, *) nsteps, ' steps'
+    write(*, *)'list of timesteps:'
+    do i=1, nsteps
+       write(*, *)1d0/aexp(i)-1d0, age_univ(i)
     enddo
-    write(*,*)MINVAL(nb_of_halos),MAXVAL(nb_of_halos),' galaxies'
-    write(*,*)MINVAL(nb_of_subhalos),MAXVAL(nb_of_subhalos),' sub-galaxies'
+    write(*, *) MINVAL(nb_of_halos), MAXVAL(nb_of_halos), ' galaxies'
+    write(*, *) MINVAL(nb_of_subhalos), MAXVAL(nb_of_subhalos), ' sub-galaxies'
     close(unit_in)
 
-    allocate(nb_of_halos_rev(1:nsteps),nb_of_subhalos_rev(1:nsteps))
-    allocate(aexp_rev(1:nsteps),omega_t_rev(1:nsteps),age_univ_rev(1:nsteps))
-    do i=1,nsteps
+    allocate(nb_of_halos_rev(1:nsteps), nb_of_subhalos_rev(1:nsteps))
+    allocate(aexp_rev(1:nsteps), omega_t_rev(1:nsteps), age_univ_rev(1:nsteps))
+    do i=1, nsteps
        nb_of_halos_rev   (nsteps-i+1)=nb_of_halos   (i)
        nb_of_subhalos_rev(nsteps-i+1)=nb_of_subhalos(i)
        aexp_rev    (nsteps-i+1)=aexp    (i)
@@ -208,93 +208,93 @@ contains
        age_univ_rev(nsteps-i+1)=age_univ(i)
     enddo
 
-    open(newunit=unit_out,file=trim(outfich),form='unformatted')
+    open(newunit=unit_out, file=trim(outfich), form='unformatted')
     write(unit_out) nsteps
-    write(unit_out) nb_of_halos_rev(1:nsteps), nb_of_subhalos_rev(1:nsteps)
-    write(unit_out) aexp_rev(1:nsteps)
-    write(unit_out) omega_t_rev(1:nsteps)
-    write(unit_out) age_univ_rev(1:nsteps)
-    deallocate(nb_of_halos_rev,nb_of_subhalos_rev,aexp_rev,omega_t_rev,age_univ_rev)
+    write(unit_out) nb_of_halos_rev, nb_of_subhalos_rev
+    write(unit_out) aexp_rev
+    write(unit_out) omega_t_rev
+    write(unit_out) age_univ_rev
+    deallocate(nb_of_halos_rev, nb_of_subhalos_rev, aexp_rev, omega_t_rev, age_univ_rev)
 
-    idone=nsteps
+    idone = nsteps
 
-    do while(idone>0)
+    do while(idone > 0)
 
-       open(newunit=unit_in,file=trim(filetree),status='old',form='unformatted')
+       open(newunit=unit_in, file=trim(filetree), status='old', form='unformatted')
        read(unit_in) nsteps
-       read(unit_in) nb_of_halos(1:nsteps), nb_of_subhalos(1:nsteps)
-       read(unit_in) aexp(1:nsteps)
-       read(unit_in) omega_t(1:nsteps)
-       read(unit_in) age_univ(1:nsteps)
+       read(unit_in) nb_of_halos, nb_of_subhalos
+       read(unit_in) aexp
+       read(unit_in) omega_t
+       read(unit_in) age_univ
 
-       do istep=1,idone
+       do istep=1, idone
 
-          ntot=nb_of_halos(istep)+nb_of_subhalos(istep)
+          ntot = nb_of_halos(istep)+nb_of_subhalos(istep)
 
-          if(istep==idone)then
+          if (istep == idone) then
 
-             do j=1,ntot
+             do j=1, ntot
                 read(unit_in) mynumber
                 read(unit_in) BushID
                 read(unit_in) mystep
-                read(unit_in) level,hosthalo,hostsub,nbsub,nextsub
+                read(unit_in) level, hosthalo, hostsub, nbsub, nextsub
                 read(unit_in) m
                 read(unit_in) macc
-                read(unit_in) px,py,pz
-                read(unit_in) vx,vy,vz
-                read(unit_in) Lx,Ly,Lz
-                read(unit_in) r,ra,rb,rc
-                read(unit_in) ek,ep,et
+                read(unit_in) px, py, pz
+                read(unit_in) vx, vy, vz
+                read(unit_in) Lx, Ly, Lz
+                read(unit_in) r, ra, rb, rc
+                read(unit_in) ek, ep, et
                 read(unit_in) spin
 
                 write(unit_out) mynumber
                 write(unit_out) BushID
                 write(unit_out) mystep
-                write(unit_out) level,hosthalo,hostsub,nbsub,nextsub
+                write(unit_out) level, hosthalo, hostsub, nbsub, nextsub
                 write(unit_out) m
                 write(unit_out) macc
-                write(unit_out) px,py,pz
-                write(unit_out) vx,vy,vz
-                write(unit_out) Lx,Ly,Lz
-                write(unit_out) r,ra,rb,rc
-                write(unit_out) ek,ep,et
+                write(unit_out) px, py, pz
+                write(unit_out) vx, vy, vz
+                write(unit_out) Lx, Ly, Lz
+                write(unit_out) r, ra, rb, rc
+                write(unit_out) ek, ep, et
                 write(unit_out) spin
 
                 read(unit_in) nb_of_fathers
                 write(unit_out) nb_of_fathers
-                if(nb_of_fathers>0)then
-                   allocate(idfather(1:nb_of_fathers),mfather(1:nb_of_fathers))
-                   read(unit_in) idfather(1:nb_of_fathers)
-                   read(unit_in) mfather (1:nb_of_fathers)
+                if (nb_of_fathers > 0) then
+                   allocate(idfather(1:nb_of_fathers), mfather(1:nb_of_fathers))
+                   read(unit_in) idfather
+                   read(unit_in) mfather
                    write(unit_out) idfather(1:nb_of_fathers)
                    write(unit_out) mfather (1:nb_of_fathers)
-                   deallocate(idfather,mfather)
+                   deallocate(idfather, mfather)
                 endif
 
                 read(unit_in) nb_of_sons
                 write(unit_out) nb_of_sons
-                if(nb_of_sons>0)then
+                if (nb_of_sons > 0) then
                    allocate(idson(1:nb_of_sons))
-                   read(unit_in) idson(1:nb_of_sons)
+                   read(unit_in) idson
                    write(unit_out) idson(1:nb_of_sons)
                    deallocate(idson)
                 endif
 
-                read(unit_in)rvir,mvir,tvir,cvel
-                read(unit_in)rho0,rc2
-                if(star)read(unit_in)ncont
+                read(unit_in) rvir, mvir, tvir, cvel
+                read(unit_in) rho0, rc2
+                if (star) read(unit_in) ncont
 
-                write(unit_out)rvir,mvir,tvir,cvel
-                write(unit_out)rho0,rc2
-                if(star)write(unit_out)ncont
+                write(unit_out) rvir, mvir, tvir, cvel
+                write(unit_out) rho0, rc2
+                if (star) write(unit_out) ncont
              enddo
 
-             write(*,*)'wrote ',idone,1d0/aexp(idone)-1d0
-             idone=idone-1
+             write(*, *)'wrote ', idone, 1d0/aexp(idone)-1d0
+             idone = idone-1
 
-          else if(istep<idone) then
+          else if (istep < idone) then
 
-             do j=1,ntot
+             do j=1, ntot
                 read(unit_in)
                 read(unit_in)
                 read(unit_in)
@@ -309,23 +309,23 @@ contains
                 read(unit_in)
 
                 read(unit_in) nb_of_fathers
-                if(nb_of_fathers>0)then
-                   allocate(idfather(1:nb_of_fathers),mfather(1:nb_of_fathers))
-                   read(unit_in) idfather(1:nb_of_fathers)
-                   read(unit_in) mfather (1:nb_of_fathers)
-                   deallocate(idfather,mfather)
+                if (nb_of_fathers > 0) then
+                   allocate(idfather(1:nb_of_fathers), mfather(1:nb_of_fathers))
+                   read(unit_in) idfather
+                   read(unit_in) mfather
+                   deallocate(idfather, mfather)
                 endif
 
                 read(unit_in) nb_of_sons
-                if(nb_of_sons>0)then
+                if (nb_of_sons > 0) then
                    allocate(idson(1:nb_of_sons))
-                   read(unit_in) idson(1:nb_of_sons)
+                   read(unit_in) idson
                    deallocate(idson)
                 endif
 
                 read(unit_in)
                 read(unit_in)
-                if(star)read(unit_in)
+                if (star) read(unit_in)
              enddo
 
           endif
