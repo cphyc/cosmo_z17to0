@@ -1,44 +1,44 @@
 [modes]
-modes=dist dist-no-parallel debug
+modes		=dist dist-no-parallel debug
 
 [common-variables]
-$cflags=-c -i4 -r8 -gen-interfaces -warn interfaces -std15
-$lflags=-std15
+$cflags		=-c -i4 -r8 -gen-interfaces -warn interfaces -std15
+$lflags		=-std15
 
 [template-dir]
-mod_dir=./mod/
-build_dir=./build/
-exec_dir=./bin/
+mod_dir		=./mod/
+build_dir	=./build/
+exec_dir	=./bin/
 
 [template-dist-dir]
-mod_dir=./mod/
-build_dir=./dist/
-exec_dir=./bin/
+mod_dir		=./mod/
+build_dir	=./dist/
+exec_dir	=./bin/
 
 [template-dist-no-p-dir]
-mod_dir=./mod/
-build_dir=./dist-no-p/
-exec_dir=./bin/
+mod_dir		=./mod/
+build_dir	=./dist-no-p/
+exec_dir	=./bin/
 
 [dist-no-parallel]
-template=template-dist-no-p-dir
-help=Compile for running
-compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -traceback
-lflags=$lflags -traceback
-jobs=4
+template	=template-dist-no-p-dir
+help		=Compile for running
+compiler	=intel
+cflags		=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -traceback
+lflags		=$lflags -traceback
+jobs		=4
 
 [dist]
-template=template-dist-dir
-help=Compile for running
-compiler=intel
-cflags=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -qopenmp -parallel
-lflags=$lflags -qopenmp -parallel
-jobs=4
+template	=template-dist-dir
+help		=Compile for running
+compiler	=intel
+cflags		=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -qopenmp -parallel
+lflags		=$lflags -qopenmp -parallel
+jobs		=4
 
 [debug]
-template=template-dir
-1help=Compile for debugging
-compiler=intel
-cflags=$cflags -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs
-lflags=$lflags -g -O0 -debug
+template	=template-dir
+1help		=Compile for debugging
+compiler	=intel
+cflags		=$cflags -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs
+lflags		=$lflags -g -O0 -debug
