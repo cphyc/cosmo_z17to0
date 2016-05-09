@@ -84,7 +84,13 @@ contains
        end if
     end if
 
+    ! Check that the halo_id is non negative (if it is, stop immediately)
     read(unit) halo_id
+    if (halo_id == -1) then
+       call close_file()
+       stop_now = .true.
+       return
+    end if
     read(unit) BushID
     read(unit) step
     read(unit) level, hosthalo, hostsub, nbsub, nextsub
