@@ -1,4 +1,4 @@
-module readTree
+module readtree
   implicit none
   public
   integer :: nsteps !> Number of steps in the simulation
@@ -15,10 +15,10 @@ module readTree
   integer :: unit
 
   ! Some temp variable
-  integer, allocatable       :: tmp_id_father(:), tmp_id_son(:)
-  real(kind=4), allocatable  :: tmp_m_father(:)
+  integer, allocatable       :: tmp_id_fathers(:), tmp_id_sons(:)
+  real(kind=4), allocatable  :: tmp_m_fathers(:)
 
-  private :: istep, j, unit, tmp_id_father, tmp_id_son, tmp_m_father
+  private :: istep, j, unit, tmp_id_fathers, tmp_id_sons, tmp_m_fathers
 contains
   !> Read a merger tree, storing the data about it in the module.
   subroutine read_tree(filename)
@@ -43,7 +43,7 @@ contains
   !> Read the next part of the tree. If the end is reached, set stop_now to True.
   !! To get the father / son of the halo, call directly after 'get_father' or 'get_son'
   subroutine iter_tree(stop_now, halo_id, BushID, step, level, hosthalo, hostsub, &
-       nbsub, nextsub, nb_of_fathers, nb_of_son, &
+       nbsub, nextsub, nb_of_fathers, nb_of_sons, &
        m, macc, px, py, pz, vx, vy, vz, Lx, Ly, Lz, &
        r, ra, rb, rc, ek, ep, et, spin)
 
@@ -57,7 +57,7 @@ contains
     integer(kind=4), intent(out), optional :: nbsub         !> number of subhalos
     integer(kind=4), intent(out), optional :: nextsub       !> ???
     integer(kind=4), intent(out), optional :: nb_of_fathers
-    integer(kind=4), intent(out), optional :: nb_of_son
+    integer(kind=4), intent(out), optional :: nb_of_sons
     real(kind=4), intent(out), optional    :: m             !> Mass of the halo
     real(kind=4), intent(out), optional    :: macc          !> Accreted mass
     real(kind=4), intent(out), optional    :: px, py, pz    !> position of the halo
@@ -100,23 +100,23 @@ contains
     read(unit) nb_of_fathers
 
     if (nb_of_fathers > 0) then
-       if (allocated(tmp_id_father)) deallocate(tmp_id_father)
-       if (allocated(tmp_m_father )) deallocate(tmp_m_father)
+       if (allocated(tmp_id_fathers)) deallocate(tmp_id_fathers)
+       if (allocated(tmp_m_fathers )) deallocate(tmp_m_fathers)
 
-       allocate(tmp_id_father(nb_of_fathers), tmp_m_father(nb_of_fathers))
+       allocate(tmp_id_fathers(nb_of_fathers), tmp_m_fathers(nb_of_fathers))
 
-       read(unit) tmp_id_father
-       read(unit) tmp_m_father
+       read(unit) tmp_id_fathers
+       read(unit) tmp_m_fathers
     endif
 
-    read(unit) nb_of_son
-    if(nb_of_son>0)then
-       if (allocated(tmp_id_son)) then
-          deallocate(tmp_id_son)
+    read(unit) nb_of_sons
+    if(nb_of_sons>0)then
+       if (allocated(tmp_id_sons)) then
+          deallocate(tmp_id_sons)
        end if
-       allocate(tmp_id_son(nb_of_son))
+       allocate(tmp_id_sons(nb_of_sons))
 
-       read(unit) tmp_id_son
+       read(unit) tmp_id_sons
     endif
 
     read(unit)
@@ -125,22 +125,22 @@ contains
   end subroutine iter_tree
 
   !> Get the father of the last red halo
-  subroutine get_father(nb_of_fathers, id_father, m_father)
+  subroutine get_fathers(nb_of_fathers, id_fathers, m_fathers)
     integer, intent(in)                                 :: nb_of_fathers !> number of son of the halo
-    integer, dimension(nb_of_fathers), intent(out)      :: id_father     !> id of the father
-    real(kind=4), dimension(nb_of_fathers), intent(out) :: m_father      !> mass of the father
+    integer, dimension(nb_of_fathers), intent(out)      :: id_fathers     !> id of the father
+    real(kind=4), dimension(nb_of_fathers), intent(out) :: m_fathers      !> mass of the father
 
-    id_father = tmp_id_father
-    m_father = tmp_m_father
-  end subroutine get_father
+    id_fathers = tmp_id_fathers
+    m_fathers = tmp_m_fathers
+  end subroutine get_fathers
 
   !> Get the son of the last red halo
-  subroutine get_son(nb_of_son, id_son)
-    integer, intent(in)                        :: nb_of_son !> number of son of the halo
-    integer, dimension(nb_of_son), intent(out) :: id_son    !> ids of the son of the halo
+  subroutine get_sons(nb_of_sons, id_sons)
+    integer, intent(in)                         :: nb_of_sons!> number of son of the halo
+    integer, dimension(nb_of_sons), intent(out) :: id_sons    !> ids of the son of the halo
 
-    id_son = tmp_id_son
-  end subroutine get_son
+    id_sons = tmp_id_sons
+  end subroutine get_sons
 
   !> Close the tree file
   subroutine close_file()
@@ -342,4 +342,4 @@ contains
 
 
   end subroutine revert_steps
-end module readTree
+end module readtree
