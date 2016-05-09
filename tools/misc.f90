@@ -559,6 +559,8 @@ contains
          act='store', def='0')
     call cli%add(switch='--halo-i', help='Halo number', &
          act='store', def='-1')
+    call cli%add(switch='--halo-to-treat', help='Halo to treat', &
+         act='store', nargs='*', def='-1')
 
 
   end subroutine parse_params
