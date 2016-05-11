@@ -24,8 +24,8 @@ exec_dir	=./bin/
 template	=template-dist-no-p-dir
 help		=Compile for running
 compiler	=intel
-cflags		=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -traceback
-lflags		=$lflags -traceback
+cflags		=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -traceback -fPIC
+lflags		=$lflags -traceback -fPIC
 jobs		=4
 
 [dist]
