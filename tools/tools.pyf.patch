@@ -1,0 +1,52 @@
+88,91d87
+<             subroutine parse_params(cli) ! in :_tools:misc.f90:misc
+<                 use flap, only: command_line_interface
+<                 type(command_line_interface) intent(out) :: cli
+<             end subroutine parse_params
+133,149d128
+<             type unknown_type ! in :_tools:io.f90:io
+<                 integer, allocatable,dimension(:) :: ids
+<                 integer :: parts
+<             end type unknown_type
+<             type unknown_type ! in :_tools:io.f90:io
+<                 integer :: ncpu
+<                 integer :: ndim
+<                 integer :: levelmin
+<                 integer :: levelmax
+<                 character(len=128) :: ordering
+<                 real(kind=8) :: t
+<                 real(kind=8) :: aexp
+<                 real(kind=8) :: unit_l
+<                 real(kind=8) :: unit_t
+<                 real(kind=8) :: boxlen
+<                 real(kind=8), allocatable,dimension(:) :: bound_key
+<             end type unknown_type
+178,181d156
+<             subroutine read_info_headers(filename,infos) ! in :_tools:io.f90:io
+<                 character*(*) intent(in) :: filename
+<                 type(infos_t) intent(out) :: infos
+<             end subroutine read_info_headers
+215,237d189
+<             subroutine read_brick_header(filename,infos,nbodies,aexp,age_univ,nb_of_halos,nb_of_subhalos) ! in :_tools:io.f90:io
+<                 character*(*) intent(in) :: filename
+<                 type(infos_t) intent(in) :: infos
+<                 integer intent(out) :: nbodies
+<                 real(kind=4) intent(out) :: aexp
+<                 real(kind=4) intent(out) :: age_univ
+<                 integer intent(out) :: nb_of_halos
+<                 integer intent(out) :: nb_of_subhalos
+<             end subroutine read_brick_header
+<             subroutine read_brick_data(nb_of_dm,infos,dm_type,mdm,posdm,rvirdm,mvirdm,tvirdm,hlevel,ldm,iddm,members) ! in :_tools:io.f90:io
+<                 integer intent(in) :: nb_of_dm
+<                 type(infos_t) intent(in) :: infos
+<                 logical intent(in) :: dm_type
+<                 real(kind=8) dimension(nb_of_dm),intent(out),depend(nb_of_dm) :: mdm
+<                 real(kind=8) dimension(infos%ndim,nb_of_dm),intent(out),depend(infos,nb_of_dm) :: posdm
+<                 real(kind=8) dimension(nb_of_dm),intent(out),depend(nb_of_dm) :: rvirdm
+<                 real(kind=8) dimension(nb_of_dm),intent(out),depend(nb_of_dm) :: mvirdm
+<                 real(kind=8) dimension(nb_of_dm),intent(out),depend(nb_of_dm) :: tvirdm
+<                 real(kind=8) dimension(nb_of_dm),intent(out),depend(nb_of_dm) :: hlevel
+<                 real(kind=8) dimension(infos%ndim,nb_of_dm),intent(out),depend(infos,nb_of_dm) :: ldm
+<                 integer dimension(nb_of_dm),intent(out),depend(nb_of_dm) :: iddm
+<                 type(members_t) dimension(nb_of_dm),intent(out),depend(nb_of_dm) :: members
+<             end subroutine read_brick_data
