@@ -1,24 +1,38 @@
 module io
+  use misc
   implicit none
 
   integer :: tmp_unit
   logical :: infos_read = .false.
 
+  !> Type holding the members in a halo
   type :: MEMBERS_T
      integer, dimension(:), allocatable :: ids
      integer :: parts
   end type MEMBERS_T
 
+  !> Type containing data about simulation
   type :: INFOS_T
      integer                                   :: ncpu, ndim, levelmin, levelmax
      character(len=128)                        :: ordering
      real(kind = 8)                            :: t, aexp, unit_l, unit_t, boxlen
      real(kind = 8), dimension(:), allocatable :: bound_key
+     character(len=128)                        :: basepath
+     integer                                   :: output
   end type INFOS_T
 
-  private :: infos_read, tmp_unit, read_1, read_2, read_2_dummy, write_list_reals, write_list_ints
+  type :: PARTICLE_DATA
+     real(kind=8), dimension(:, :), allocatable   :: pos, vel
+     real(kind=8), dimension(:), allocatable      :: m
+     real(kind=4), dimension(:), allocatable      :: birth_date
+     integer, dimension(:), allocatable           :: ids
+     integer :: cpu
+  end type PARTICLE_DATA
 
-  !! Interface to read list
+  private :: infos_read, tmp_unit, read_1, read_2, read_2_dummy,&
+       & write_list_reals, write_list_ints
+
+  !> Interface to read lists
   interface read_list_data
      subroutine read_list_data_ints(unit, lines, columns, data)
        integer, intent(in)                             :: unit, lines, columns
@@ -30,8 +44,14 @@ module io
        real(kind=4), dimension(lines, columns), intent(out) :: data
      end subroutine read_list_data_reals
 
+     subroutine read_list_data_reals8(unit, lines, columns, data)
+       integer, intent(in)                                  :: unit, lines, columns
+       real(kind=8), dimension(lines, columns), intent(out) :: data
+     end subroutine read_list_data_reals8
+
   end interface read_list_data
 
+  !> Interface to write lists
   interface write_list
      subroutine write_list_reals(filename, lines, columns, data)
        integer, intent(in) :: lines, columns
@@ -48,46 +68,59 @@ module io
      end subroutine write_list_ints
   end interface write_list
 
+
 contains
 
   !! Read information of an output, returning an INFOS_T object
-  subroutine read_info_headers(filename, infos)
-    character(len=*), intent(in)                           :: filename
-    type(INFOS_T), intent(out) :: infos
+  subroutine read_info_headers(basepath, output, infos)
+    character(len=*), intent(in) :: basepath
+    integer, intent(in)          :: output
+
+    class(INFOS_T), intent(out) :: infos
+
+    character(len=256) :: filename
 
     logical            :: ok
-    integer            :: impi, i
+    integer            :: impi, i, unit
 
-    inquire(file=filename, exist=ok)
+    write(filename, '(a,a,i0.5,a,i0.5,a)') trim(basepath), &
+         '/output_', output, '/info_',&
+         output, '.txt'
+
+    print*, trim(filename)
+    inquire(file=trim(filename), exist=ok)
     if (.not. ok) then
        print*, filename // ' not found'
        stop
     end if
 
-    open(unit=10, file=filename, form='formatted', status='old')
-    read(10, '("ncpu        =",I11)') infos%ncpu
-    read(10, '("ndim        =",I11)') infos%ndim
-    read(10, '("levelmin    =",I11)') infos%levelmin
-    read(10, '("levelmax    =",I11)') infos%levelmax
-    read(10, *)
-    read(10, *)
-    read(10, *)
+    infos%basepath = basepath
+    infos%output   = output
 
-   read(10, '("boxlen      =",E23.15)') infos%boxlen
-    read(10, '("time        =",E23.15)') infos%t
-    read(10, '("aexp        =",E23.15)') infos%aexp
-    read(10, *)
-    read(10, *)
-    read(10, *)
-    read(10, *)
-    read(10, *)
-    read(10, '("unit_l      =",E23.15)') infos%unit_l
-    read(10, *)
-    read(10, '("unit_t      =",E23.15)') infos%unit_t
+    open(newunit=unit, file=trim(filename), form='formatted', status='old')
+    read(unit, '("ncpu        =",I11)') infos%ncpu
+    read(unit, '("ndim        =",I11)') infos%ndim
+    read(unit, '("levelmin    =",I11)') infos%levelmin
+    read(unit, '("levelmax    =",I11)') infos%levelmax
+    read(unit, *)
+    read(unit, *)
+    read(unit, *)
 
-    read(10, *)
-    read(10, '("ordering type=",A80)') infos%ordering
-    read(10, *)
+    read(unit, '("boxlen      =",E23.15)') infos%boxlen
+    read(unit, '("time        =",E23.15)') infos%t
+    read(unit, '("aexp        =",E23.15)') infos%aexp
+    read(unit, *)
+    read(unit, *)
+    read(unit, *)
+    read(unit, *)
+    read(unit, *)
+    read(unit, '("unit_l      =",E23.15)') infos%unit_l
+    read(unit, *)
+    read(unit, '("unit_t      =",E23.15)') infos%unit_t
+
+    read(unit, *)
+    read(unit, '("ordering type=",A80)') infos%ordering
+    read(unit, *)
 
     if (TRIM(infos%ordering) == 'hilbert') then
        if (.not. allocated(infos%bound_key)) then
@@ -95,10 +128,10 @@ contains
        end if
 
        do impi = 1, infos%ncpu
-          read(10, '(I8,1X,E23.15,1X,E23.15)') i, infos%bound_key(impi-1), infos%bound_key(impi)
+          read(unit, '(I8,1X,E23.15,1X,E23.15)') i, infos%bound_key(impi-1), infos%bound_key(impi)
        end do
     endif
-    close(10)
+    close(unit)
     infos_read = .true.
   end subroutine read_info_headers
 
@@ -192,7 +225,7 @@ contains
   subroutine read_brick_header(filename, infos, nbodies, aexp, age_univ, nb_of_halos, &
        nb_of_subhalos)
     character(len=*), intent(in) :: filename
-    type(INFOS_T), intent(in)    :: infos
+    class(INFOS_T), intent(in)    :: infos
 
     integer, intent(out)         :: nbodies, nb_of_subhalos, nb_of_halos
     real(kind=4), intent(out)    :: aexp
@@ -218,13 +251,13 @@ contains
 
     integer, intent(in)                            :: nb_of_DM
     logical, intent(in)                            :: DM_type
-    type(INFOS_T), intent(in)                      :: infos
- 
+    class(INFOS_T), intent(in)                      :: infos
+
     real(kind=8), intent(out), dimension(nb_of_DM)             :: mDM, rvirDM
     real(kind=8), intent(out), dimension(nb_of_DM)             :: mvirDM, TvirDM, hlevel
     real(kind=8), intent(out), dimension(infos%ndim, nb_of_DM) :: LDM, posDM
     integer, intent(out), dimension(nb_of_DM)                  :: idDM
-    type(MEMBERS_T), dimension(nb_of_DM), intent(out)          :: members
+    class(MEMBERS_T), dimension(nb_of_DM), intent(out)          :: members
 
     integer                             :: nb_of_parts, idh, mylevel, hosthalo
     integer                             :: hostsub, nbsub, nextsub
@@ -242,6 +275,9 @@ contains
     end if
 
     do i = 1, nb_of_DM
+       ! if (modulo(i, 1000) == 0) then
+       !    write(*, *) i
+       ! end if
        read(tmp_unit) nb_of_parts
        allocate(members(i)%ids(nb_of_parts))
        members(i)%parts = nb_of_parts
@@ -481,12 +517,108 @@ contains
 
   end subroutine read_2
 
+  !> Read the particles in region around center with size
+  !! arguments:
+  !!
+  !! center, size : array, center and size of the region
+  !! infos : INFOS_T containing the information about an output
+  !! callback: a subroutine to be called for each particle found
+  subroutine read_region(center, width, infos, data)
+    class(INFOS_T), intent(in)                      :: infos
+    real(kind=8), dimension(infos%ndim), intent(in) :: center, width
+
+    type(PARTICLE_DATA), allocatable, dimension(:), intent(out) :: data
+
+    integer, dimension(infos%ncpu) :: cpu_list
+    integer                                      :: nstar, ndim, nparts
+    real(kind=8), dimension(infos%ndim)          :: X0, X1
+
+    type(PARTICLE_DATA)  :: dt
+    integer :: counter, cpu, i, j, k, dim, part_i
+    logical, dimension(:), allocatable :: mask
+
+    X0 = center-width
+    X1 = center+width
+
+    call get_cpu_list(X0, X1, infos%levelmax, infos%bound_key, &
+         & cpu_list, infos%ncpu, infos%ndim)
+
+    ! count cpus
+    counter = 0
+    do i = 1, infos%ncpu
+       if (cpu_list(i) > 0) then
+          counter = counter + 1
+       end if
+    end do
+
+    ! allocate data for the custom array
+    allocate(data(counter))
+
+    ! iterate over each cpus
+    do i = 1, infos%ncpu
+       cpu = cpu_list(i)
+       if (cpu_list(i) == 0) then
+          cycle
+       end if
+
+       call read_particle(infos%basepath, infos%output, cpu, &
+            nstar, dt%pos, dt%vel, dt%m, dt%ids, dt%birth_date, ndim, nparts)
+       print*, 'cpu ', cpu, nparts, counter
+
+       ! keep the indexes of the particles within bounds
+       allocate(mask(nparts))
+       mask = .true.
+       do part_i = 1, nparts
+          do dim = 1, ndim
+             ! rule out particles outside region
+             ! TODO: fix bug with periodicity
+             if (abs(dt%pos(dim, part_i) - center(dim)) > width(dim)) then
+                mask(part_i) = .false.
+                ! print*, cpu, dt%ids(part_i), abs(dt%pos(dim, part_i) - center(dim)), width(dim)
+             end if
+          end do
+       end do
+
+       ! get the size of the mask
+       counter = 0
+       do j = 1, nparts
+          if (mask(j)) counter = counter + 1
+       end do
+
+       ! allocate data
+       allocate(data(i)%vel(infos%ndim, counter), &
+            data(i)%pos(infos%ndim, counter), &
+            data(i)%ids(counter), data(i)%m(counter), &
+            data(i)%birth_date(counter))
+
+       !----------------------------------------
+       ! Copy the data
+       !----------------------------------------
+       k = 1
+       do j = 1, nparts
+          if (mask(j)) then
+             data(i)%vel(:, k)     = dt%vel(:, j)
+             data(i)%pos(:, k)     = dt%pos(:, j)
+             data(i)%ids(k)        = dt%ids(j)
+             data(i)%m(k)          = dt%m(j)
+             data(i)%birth_date(k) = dt%birth_date(j)
+
+             k = k + 1
+          end if
+       end do
+       data(i)%cpu = cpu
+
+       deallocate(mask)
+
+    end do
+
+  end subroutine read_region
 end module io
 
 !-------------------------------------
 ! Subroutines to interface
 !-------------------------------------
-!! Read the data contained in the list, returning it
+!> Read the data contained in the list, returning it
 subroutine read_list_data_reals(unit, lines, columns, data)
   integer, intent(in)                                  :: unit, lines, columns
   real(kind=4), dimension(lines, columns), intent(out) :: data
@@ -494,6 +626,14 @@ subroutine read_list_data_reals(unit, lines, columns, data)
   read(unit) data
   close(unit)
 end subroutine read_list_data_reals
+
+subroutine read_list_data_reals8(unit, lines, columns, data)
+  integer, intent(in)                                  :: unit, lines, columns
+  real(kind=8), dimension(lines, columns), intent(out) :: data
+
+  read(unit) data
+  close(unit)
+end subroutine read_list_data_reals8
 
 subroutine read_list_data_ints(unit, lines, columns, data)
   integer, intent(in)                             :: unit, lines, columns

@@ -3,6 +3,7 @@ program compute_halo_prop
   use misc
   use flap, only : command_line_interface
   use compute
+  ! use hdf5
   implicit none
 
   !-------------------------------------
@@ -77,7 +78,8 @@ program compute_halo_prop
   ! Tmp variables
   !-------------------------------------
   integer                                   :: i, j, cpu, i1, i2, counter, x, y, z
-  integer                                   :: tmp_int, unit, tmp_int2, index
+  integer                                   :: tmp_int, unit,&
+       & out_unit, center_output_unit, tmp_int2, index 
   character(len=200)                        :: tmp_char
   real                                      :: tmp_real, factor
   logical                                   :: tmp_bool
@@ -86,6 +88,7 @@ program compute_halo_prop
   integer, allocatable, dimension(:)        :: tmp_iarr
   logical, dimension(4096)                  :: cpu_read
   real(kind=8), dimension(3)                :: X0, X1, center
+  real(kind=8), dimension(:, :), allocatable :: centers
   real(kind=8)                              :: margin
   integer                                   :: nstep, max_nparts, step_i
 
@@ -132,12 +135,13 @@ program compute_halo_prop
   !-------------------------------------
   ! Read brick file
   !-------------------------------------
-  call cli%get(switch='--info-file', val=tmp_char)
   print*, ''
-  print*, 'Reading brick file "' // trim(tmp_char) // '"…'
-  call read_info_headers(tmp_char, infos)
+  print*, 'Reading info file'
+  call read_info_headers(param_output_path, param_output_number_list(1), infos)
 
   call cli%get(switch='--brick', val=tmp_char)
+  print*, ''
+  print*, 'Reading brick file "' // trim(tmp_char) // '"…'
   call read_brick_header(tmp_char, infos, nbodies, aexp_tmp, age_univ,&
        nb_of_halos, nb_of_subhalos)
   nDM = nb_of_halos + nb_of_subhalos
@@ -151,6 +155,7 @@ program compute_halo_prop
   allocate(LDM(infos%ndim, nDM))
   allocate(members(nDM))
   allocate(cpu_list(infos%ncpu))
+  print*, '    …allocated…'
   call read_brick_data(nDM, infos, .true., &
        & mDM, posDM, rvirDM, mvirDM, TvirDM,&
        & hlevel, LDM, idDM, members)
@@ -196,6 +201,15 @@ program compute_halo_prop
      pos_in_halo(:, i) = posDM(:, halo_i)
   end do
 
+  call cli%get(switch='--output', val=tmp_char)
+  write(tmp_char, '(a,a)') trim(tmp_char), 'centers.bin'
+  open(newunit=center_output_unit, file=tmp_char, form='unformatted')
+
+
+  !----------------------------------------
+  ! allocate data
+  !----------------------------------------
+  allocate(centers(3, size(param_output_number_list)))
   do j = 1, size(param_output_number_list)
      !-------------------------------------
      ! Reinit cpu_read
@@ -207,18 +221,14 @@ program compute_halo_prop
      !-------------------------------------
      ! Reading information file
      !-------------------------------------
-     call cli%get(switch='--output-path', val=tmp_char)
-     write(tmp_char, '(a, a, i0.5,a,i0.5,a)') trim(tmp_char), '/output_', param_output_number, &
-          '/info_', param_output_number, '.txt'
-
      if (param_verbosity >= 2) then
         print*, ''
-        print*, 'Reading info file "' // trim(tmp_char) // '".'
+        print*, 'Reading info file.'
      end if
-     call read_info_headers(tmp_char, infos)
+     call read_info_headers(param_output_path, param_output_number, infos)
 
      !-------------------------------------
-     ! Open output file
+     ! Open output files
      !-------------------------------------
      call cli%get(switch='--output', val=tmp_char)
      write(tmp_char, '(a,i0.5)') trim(tmp_char), param_output_number
@@ -229,8 +239,8 @@ program compute_halo_prop
              ', writing output in ', trim(tmp_char), 'center:', center
      end if
 
-     open(unit=10, file=trim(tmp_char))
-     write(10, '(a9, 6a13)') 'id', 'x', 'y', 'z', 'vx', 'vy', 'vz'
+     open(newunit=out_unit, file=trim(tmp_char))
+     write(out_unit, '(a9, a5, 6a13)') 'id', 'in', 'x', 'y', 'z', 'vx', 'vy', 'vz'
 
      !-------------------------------------
      ! Iterate until all the particles are found
@@ -354,12 +364,17 @@ program compute_halo_prop
 
      print*, 'all found :D'
      do i = 1, members(halo_i)%parts
-        write(10, '(i12, 6ES14.6e2)') ids_in_halo(i), pos_in_halo(:, i), vel_in_halo(:, i)
+        write(out_unit, '(i12, L5, 6ES14.6e2)') ids_in_halo(i), .true., pos_in_halo(:, i), vel_in_halo(:, i)
      end do
-     close(10)
+
+     close(out_unit)
 
      center = sum(pos_in_halo, 2) / size(pos_in_halo, 2)
+     centers(:, j) = center
   end do
 
+  write(center_output_unit) size(param_output_number_list), 3
+  write(center_output_unit) param_output_number_list
+  write(center_output_unit) centers
 
 end program compute_halo_prop
