@@ -8,7 +8,7 @@ SOURCES=compute.f90 misc.f90 io.f90
 LIBS=$(shell pwd)/../third_party/FLAP/shared/libflap.so
 INCLUDEDIR=../dist-no-p/mod
 
-CFLAGS=-Ofast -fp-model fast=2 -static -free -cpp
+CFLAGS=-Ofast -fp-model fast=2 -static -free -cpp -xHost
 
 all: _tools.so convolution.so readtree.so
 
@@ -21,9 +21,11 @@ _tools.so: _tools.pyf $(SOURCES)
 		--compiler=$(CCNAME) --fcompiler=$(FCNAME) --f90flags="$(CFLAGS)" \
 		> /dev/null
 
-convolution.so: readtree.f90
+convolution.so: types.f90 convolution.f90
 	$(F2PY) -m $(basename $@) -c $^ \
 		--fcompiler=$(FCNAME) --compiler=$(CCNAME) --f90flags="$(CFLAGS)" \
+		only: kernel_gaussian3d fft ifft conv_hist3d conv_prod : \
+		-lfftw3 -L/softs/fftw/3.3.4-pureintel/lib -I/softs/fftw/3.3.4-pureintel/include\
 		> /dev/null
 
 readtree.so: readtree.f90
