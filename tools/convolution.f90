@@ -1,22 +1,21 @@
 module convolution
   use, intrinsic :: iso_c_binding
-
+  use types
   implicit none
 
   include 'fftw3.f03'
   ! use fftw3
 
-  type :: CONV_T(k)
-     integer, kind                :: k
-     real(kind=k), allocatable    :: A(:,:,:), B(:,:,:), conv(:,:,:)
-     complex(kind=k), allocatable :: dftA(:,:,:), dftB(:,:,:), dftConv(:,:,:)
+  type :: CONV_T
+     real(8), allocatable    :: A(:,:,:), B(:,:,:), conv(:,:,:)
+     complex(8), allocatable :: dftA(:,:,:), dftB(:,:,:), dftConv(:,:,:)
    contains
      procedure :: init_A => conv_init_A
      procedure :: init_B => conv_init_B
      procedure :: execute => conv_execute
   end type CONV_T
 
-  real(kind=8), parameter :: pi = 3.14159265358979d0
+  real(8), parameter :: pi = 3.14159265358979d0
   private :: pi
 
 contains
@@ -27,11 +26,11 @@ contains
   !! kernel: a 3d array containing the kernel
   subroutine kernel_gaussian3d(s, sigma, kernel)
     integer, intent(in) :: s
-    real(kind=8), intent(in) :: sigma
-    real(kind=8), dimension(s, s, s), intent(out) :: kernel
+    real(8), intent(in) :: sigma
+    real(8), dimension(s, s, s), intent(out) :: kernel
 
     integer :: i, j, k
-    real(kind=8) :: sizeo2, sq_sum
+    real(8) :: sizeo2, sq_sum
 
     sizeo2 = s/2.
 
@@ -48,8 +47,9 @@ contains
 
   !> Compute the fft of int, putting the result in out
   subroutine fft(in, out)
-    real(C_DOUBLE), intent(inout), dimension(:,:,:)                       :: in
-    complex(C_DOUBLE_COMPLEX), intent(out), dimension(:,:,:), allocatable :: out
+    real(8), intent(inout), dimension(:,:,:)               :: in
+    complex(8), intent(out), dimension(size(in, 1)/2+1, size(in, 2),&
+         & size(in, 3)) :: out
 
     type(C_PTR) :: plan, data
 
@@ -61,7 +61,7 @@ contains
 
     ! from http://www.fftw.org/doc/Multi_002dDimensional-DFTs-of-real-data.html#Multi_002dDimensional-DFTs-of-real-data
 
-    allocate(out(L/2+1, M, N))
+    ! allocate(out(L/2+1, M, N))
 
     ! create plan
     plan = fftw_plan_dft_r2c_3d(N, M, L, in, out, FFTW_ESTIMATE)
@@ -75,8 +75,9 @@ contains
   end subroutine fft
 
   subroutine ifft(in, out)
-    complex(C_DOUBLE_COMPLEX), intent(inout), dimension(:,:,:) :: in
-    real(C_DOUBLE), intent(out), dimension(:,:,:), allocatable :: out
+    complex(8), intent(inout), dimension(:,:,:) :: in
+
+    real(8), intent(out), dimension(size(in, 1)*2, size(in, 2), size(in, 3)) :: out
 
     type(C_PTR) :: plan, data
 
@@ -87,8 +88,6 @@ contains
     N = size(in, 3)
 
     ! from http://www.fftw.org/doc/Multi_002dDimensional-DFTs-of-real-data.html#Multi_002dDimensional-DFTs-of-real-data
-
-    allocate(out(L*2, M, N))
 
     ! create plan
     plan = fftw_plan_dft_c2r_3d(N, M, L, in, out, FFTW_ESTIMATE)
@@ -103,8 +102,8 @@ contains
 
   !> Prepare the convolution A*B by giving A
   subroutine conv_init_A (conv_object, A)
-    real(kind=8), intent(in)      :: A(:,:,:)
-    class(CONV_T(8)), intent(out) :: conv_object
+    real(8), intent(in)  :: A(:,:,:)
+    class(CONV_T), intent(out) :: conv_object
 
     allocate(conv_object%A(size(A, 1), size(A, 2), size(A, 3)))
     conv_object%A = A
@@ -114,8 +113,8 @@ contains
 
   !> Prepare the convolution A*B by giving B
   subroutine conv_init_B (conv_object, B)
-    real(kind=8), intent(in)      :: B(:,:,:)
-    class(CONV_T(8)), intent(inout) :: conv_object
+    real(8), intent(in)      :: B(:,:,:)
+    class(CONV_T), intent(inout) :: conv_object
 
     allocate(conv_object%B(size(B, 1), size(B, 2), size(B, 3)))
     conv_object%B = B
@@ -125,7 +124,7 @@ contains
 
   !> Execute the convolution
   subroutine conv_execute(conv_object)
-    class(CONV_T(8)), intent(inout) :: conv_object
+    class(CONV_T), intent(inout) :: conv_object
 
     integer :: L, M, N
     L = size(conv_object%dftA, 1)
@@ -139,13 +138,13 @@ contains
   end subroutine conv_execute
 
   subroutine conv_hist3d(data, nbin, hist, bins)
-    real(kind=8), dimension(:,:), intent(in) :: data ! data(ndim, nparts)
-    integer, intent(in)                      :: nbin
+    real(8), dimension(:,:), intent(in) :: data ! data(ndim, nparts)
+    integer, intent(in)                 :: nbin
 
-    real(kind=8), dimension(nbin, nbin, nbin), intent(out) :: hist
-    real(kind=8), dimension(3, nbin), intent(out), optional :: bins
+    real(8), dimension(nbin, nbin, nbin), intent(out) :: hist
+    real(8), dimension(3, nbin), intent(out), optional :: bins
 
-    real(kind=8), dimension(3) :: maxis, minis, spans
+    real(8), dimension(3) :: maxis, minis, spans
 
     integer :: i, j, k, part_i, ndim, nparts
 
@@ -171,6 +170,8 @@ contains
        j = floor((data(2, part_i) - minis(2)) * (nbin * 1d0) / spans(2)) + 1
        k = floor((data(3, part_i) - minis(3)) * nbin / spans(3)) + 1
 
+       ! because of rounding errors, the maxima aren't well found,
+       ! fix that
        if (data(1, part_i) == maxis(1)) i = nbin
        if (data(2, part_i) == maxis(2)) j = nbin
        if (data(3, part_i) == maxis(3)) k = nbin
