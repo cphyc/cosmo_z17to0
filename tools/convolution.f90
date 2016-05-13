@@ -7,15 +7,15 @@ module convolution
   ! use fftw3
 
   type :: CONV_T
-     real(8), allocatable    :: A(:,:,:), B(:,:,:), conv(:,:,:)
-     complex(8), allocatable :: dftA(:,:,:), dftB(:,:,:), dftConv(:,:,:)
+     real(dp), allocatable    :: A(:,:,:), B(:,:,:), conv(:,:,:)
+     complex(dp), allocatable :: dftA(:,:,:), dftB(:,:,:), dftConv(:,:,:)
    contains
      procedure :: init_A => conv_init_A
      procedure :: init_B => conv_init_B
      procedure :: execute => conv_execute
   end type CONV_T
 
-  real(8), parameter :: pi = 3.14159265358979d0
+  real(dp), parameter :: pi = 3.14159265358979d0
   private :: pi
 
 contains
@@ -26,11 +26,11 @@ contains
   !! kernel: a 3d array containing the kernel
   subroutine kernel_gaussian3d(s, sigma, kernel)
     integer, intent(in) :: s
-    real(8), intent(in) :: sigma
-    real(8), dimension(s, s, s), intent(out) :: kernel
+    real(dp), intent(in) :: sigma
+    real(dp), dimension(s, s, s), intent(out) :: kernel
 
     integer :: i, j, k
-    real(8) :: sizeo2, sq_sum
+    real(dp) :: sizeo2, sq_sum
 
     sizeo2 = s/2.
 
@@ -47,25 +47,21 @@ contains
 
   !> Compute the fft of in, putting the result in out
   subroutine fft(in, out)
-    real(8), intent(inout), dimension(:,:,:) :: in
-    complex(8), intent(out), dimension(size(in, 1), size(in, 2),&
+    real(dp), intent(inout), dimension(:,:,:) :: in
+    complex(dp), intent(out), dimension(size(in, 1), size(in, 2),&
          & size(in, 3)) :: out
-    complex(8), dimension(size(in, 1), size(in, 2),&
+    complex(dp), dimension(size(in, 1), size(in, 2),&
          & size(in, 3)) :: cplx_in
 
     type(C_PTR) :: plan, data
 
     integer :: L, N, M, flags
 
-    cplx_in = dcmplx(in)
-
     L = size(in, 1)
     M = size(in, 2)
     N = size(in, 3)
 
-    ! from http://www.fftw.org/doc/Multi_002dDimensional-DFTs-of-real-data.html#Multi_002dDimensional-DFTs-of-real-data
-
-    ! allocate(out(L/2+1, M, N))
+    cplx_in = dcmplx(in)
 
     ! create plan
     plan = fftw_plan_dft_3d(N, M, L, cplx_in, out, FFTW_FORWARD, FFTW_ESTIMATE)
@@ -79,12 +75,11 @@ contains
   end subroutine fft
 
   subroutine ifft(in, out)
-    complex(8), intent(inout), dimension(:,:,:) :: in
+    complex(dp), intent(inout), dimension(:,:,:) :: in
 
-    real(8), intent(out), dimension(size(in, 1), size(in, 2),&
-         & size(in, 3)) :: out
-    complex(8), dimension(size(in, 1), size(in, 2),&
-         & size(in, 3)) :: cplx_out
+    real(dp), intent(out), dimension(size(in, 1), size(in, 2), size(in, 3)) :: out
+
+    complex(dp), dimension(size(in, 1), size(in, 2), size(in, 3)) :: cplx_out
 
     type(C_PTR) :: plan, data
 
@@ -93,8 +88,6 @@ contains
     L = size(in, 1)
     M = size(in, 2)
     N = size(in, 3)
-
-    ! from http://www.fftw.org/doc/Multi_002dDimensional-DFTs-of-real-data.html#Multi_002dDimensional-DFTs-of-real-data
 
     ! create plan
     plan = fftw_plan_dft_3d(N, M, L, in, cplx_out, FFTW_BACKWARD, FFTW_ESTIMATE)
@@ -111,7 +104,7 @@ contains
 
   !> Prepare the convolution A*B by giving A
   subroutine conv_init_A (conv_object, A)
-    real(8), intent(in)  :: A(:,:,:)
+    real(dp), intent(in)  :: A(:,:,:)
     class(CONV_T), intent(out) :: conv_object
 
     allocate(conv_object%A(size(A, 1), size(A, 2), size(A, 3)))
@@ -122,7 +115,7 @@ contains
 
   !> Prepare the convolution A*B by giving B
   subroutine conv_init_B (conv_object, B)
-    real(8), intent(in)      :: B(:,:,:)
+    real(dp), intent(in)      :: B(:,:,:)
     class(CONV_T), intent(inout) :: conv_object
 
     allocate(conv_object%B(size(B, 1), size(B, 2), size(B, 3)))
@@ -146,14 +139,34 @@ contains
     call ifft(conv_object%dftConv, conv_object%conv)
   end subroutine conv_execute
 
+  !> Compute the convolution product of A, B in fourier space
+  subroutine conv_prod(A, B, C)
+    complex(dp), intent(in)  :: A(:,:,:), B(:,:,:)
+    complex(dp), intent(out) :: C(size(A, 1), size(A, 2), size(A, 3))
+
+    integer :: i,j,k
+    do k = 1, size(A, 3)
+       do j = 1, size(A, 2)
+          do i = 1, size(A, 1)
+             ! from
+             ! http://www.fftw.org/faq/section3.html#centerorigin
+             ! with special care with the fact that fortran starts
+             ! indexing at 1, not 0!
+             C(i,j,k) = A(i,j,k) * B(i,j,k) * (-1)**(i+j+k+1)
+          end do
+       end do
+    end do
+
+  end subroutine conv_prod
+
   subroutine conv_hist3d(data, nbin, hist, bins)
-    real(8), dimension(:,:), intent(in) :: data ! data(ndim, nparts)
-    integer, intent(in)                 :: nbin
+    real(dp), dimension(:,:), intent(in) :: data ! data(ndim, nparts)
+    integer, intent(in)                  :: nbin
 
-    real(8), dimension(nbin, nbin, nbin), intent(out) :: hist
-    real(8), dimension(3, nbin), intent(out), optional :: bins
+    real(dp), dimension(nbin, nbin, nbin), intent(out)   :: hist
+    real(dp), dimension(3, nbin), intent(out), optional  :: bins
 
-    real(8), dimension(3) :: maxis, minis, spans
+    real(dp), dimension(3) :: maxis, minis, spans
 
     integer :: i, j, k, part_i, ndim, nparts
 
@@ -171,7 +184,6 @@ contains
     print*, minis, maxis
 
     print*, nparts
-    hist = 0
     ! project the data onto the bins
     do part_i = 1, nparts
        ! get the position in the grid

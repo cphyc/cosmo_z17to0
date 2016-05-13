@@ -1,0 +1,4 @@
+{'complex': {'8': 'complex_double',
+             'dp': 'complex_double',
+             'sp': 'complex_float'},
+ 'real': {'8': 'double', 'dp': 'double', 'qp': 'long_double', 'sp': 'float'}}
