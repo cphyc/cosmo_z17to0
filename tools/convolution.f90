@@ -45,15 +45,19 @@ contains
 
   end subroutine kernel_gaussian3d
 
-  !> Compute the fft of int, putting the result in out
+  !> Compute the fft of in, putting the result in out
   subroutine fft(in, out)
-    real(8), intent(inout), dimension(:,:,:)               :: in
-    complex(8), intent(out), dimension(size(in, 1)/2+1, size(in, 2),&
+    real(8), intent(inout), dimension(:,:,:) :: in
+    complex(8), intent(out), dimension(size(in, 1), size(in, 2),&
          & size(in, 3)) :: out
+    complex(8), dimension(size(in, 1), size(in, 2),&
+         & size(in, 3)) :: cplx_in
 
     type(C_PTR) :: plan, data
 
     integer :: L, N, M, flags
+
+    cplx_in = dcmplx(in)
 
     L = size(in, 1)
     M = size(in, 2)
@@ -64,10 +68,10 @@ contains
     ! allocate(out(L/2+1, M, N))
 
     ! create plan
-    plan = fftw_plan_dft_r2c_3d(N, M, L, in, out, FFTW_ESTIMATE)
+    plan = fftw_plan_dft_3d(N, M, L, cplx_in, out, FFTW_FORWARD, FFTW_ESTIMATE)
 
     ! execute it
-    call fftw_execute_dft_r2c(plan, in, out)
+    call fftw_execute_dft(plan, cplx_in, out)
 
     ! delete plan
     call fftw_destroy_plan(plan)
@@ -77,7 +81,10 @@ contains
   subroutine ifft(in, out)
     complex(8), intent(inout), dimension(:,:,:) :: in
 
-    real(8), intent(out), dimension(size(in, 1)*2, size(in, 2), size(in, 3)) :: out
+    real(8), intent(out), dimension(size(in, 1), size(in, 2),&
+         & size(in, 3)) :: out
+    complex(8), dimension(size(in, 1), size(in, 2),&
+         & size(in, 3)) :: cplx_out
 
     type(C_PTR) :: plan, data
 
@@ -90,10 +97,12 @@ contains
     ! from http://www.fftw.org/doc/Multi_002dDimensional-DFTs-of-real-data.html#Multi_002dDimensional-DFTs-of-real-data
 
     ! create plan
-    plan = fftw_plan_dft_c2r_3d(N, M, L, in, out, FFTW_ESTIMATE)
+    plan = fftw_plan_dft_3d(N, M, L, in, cplx_out, FFTW_BACKWARD, FFTW_ESTIMATE)
 
     ! execute it
-    call fftw_execute_dft_c2r(plan, in, out)
+    call fftw_execute_dft(plan, in, cplx_out)
+
+    out = dble(cplx_out) / (L*M*N)
 
     ! delete plan
     call fftw_destroy_plan(plan)

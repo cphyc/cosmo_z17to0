@@ -1,5 +1,6 @@
 module io
   use misc
+  use compute
   implicit none
 
   integer :: tmp_unit
@@ -366,12 +367,9 @@ contains
     integer, intent(out), dimension(nhalos, nsteps) :: parent
     integer, intent(out), dimension(nhalos_at_step(nsteps)) :: halos_z0
 
-    integer, dimension(nhalos) :: current_children
-    integer, dimension(nhalos) :: order
-
     integer(kind=4), dimension(:), allocatable :: idfather
     real(kind=4), dimension(:), allocatable :: mfather
-    integer :: i, step, nb_of_fathers, nb_of_sons, halo_id, imax, child
+    integer :: i, step, nb_of_fathers, halo_id, imax
 
     ! children_sorted = children
 
@@ -571,11 +569,26 @@ contains
        do part_i = 1, nparts
           do dim = 1, ndim
              ! rule out particles outside region
-             ! TODO: fix bug with periodicity
-             if (abs(dt%pos(dim, part_i) - center(dim)) > width(dim)) then
-                mask(part_i) = .false.
-                ! print*, cpu, dt%ids(part_i), abs(dt%pos(dim, part_i) - center(dim)), width(dim)
-             end if
+             ! if the distance is larger than width
+             block
+               real(kind=8) :: dist
+
+               dist = dt%pos(dim, part_i) - center(dim)
+               ! correct distances if farther than 0.5 units
+               if (dist > 0.5) then
+                  dist = dist - 1d0
+                  dt%pos(dim, part_i) = dt%pos(dim, part_i) - 1d0
+               else if (dist < -0.5) then
+                  dist = dist + 1d0
+                  dt%pos(dim, part_i) = dt%pos(dim, part_i) + 1d0
+               else
+                  dist = abs(dist)
+               end if
+
+               if (dist > width(dim)) then
+                  mask(part_i) = .false.
+               end if
+             end block
           end do
        end do
 
