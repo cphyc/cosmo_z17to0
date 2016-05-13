@@ -9,7 +9,7 @@ program compute_halo_prop
   !-------------------------------------
   ! Parameters
   !-------------------------------------
-  character(len=200) :: halo_to_cpu_file, param_output_path
+  character(len=200) :: param_output_path
   integer :: param_from, param_to, param_output_number
   integer, parameter :: NPARTICLE_TO_PROBE_HALO = 50, NCPU_PER_HALO = 10
   real(dp) :: param_min_m, param_max_m
