@@ -1,4 +1,6 @@
 module misc
+  use types
+
   implicit none
 
   interface minmax
@@ -280,7 +282,6 @@ contains
 
     real(kind = 8), dimension(1:ndim) :: X0_tmp, X1_tmp
     real(kind=8), dimension(3, 2, 2)  :: bounds
-    real(kind = 8), dimension(1:ndim, 2) :: X0_domains, X1_domains
     integer :: i, j, k
 
     cpu_list = 0
@@ -462,7 +463,7 @@ contains
   end function indexOf
 
   subroutine max_index (array, imax)
-    real(kind=4), intent(in), dimension(:) :: array
+    real(sp), intent(in), dimension(:) :: array
     integer, intent(out) :: imax
     real :: maxval
     integer :: i
@@ -552,7 +553,7 @@ contains
     call cli%add(switch='--output-path', help='Path of the output', &
          act='store', def='/data52/Horizon-AGN/OUTPUT_DIR')
     call cli%add(switch='--output-number', help='Number of the output', &
-         act='store', def='1', nargs='+')
+         act='store', def='2', nargs='+')
     call cli%add(switch='--output', switch_ab='-o', help='Name of the output file', &
          act='store', def='data.out')
     call cli%add(switch='--verbose', help='Verbosity', &
@@ -588,6 +589,45 @@ contains
 
   end subroutine fill
 
+  subroutine filter_region(center, width, in, out, parts_in_region)
+    real(dp), dimension(3), intent(in)    :: center, width
+    real(dp), dimension(:, :), intent(in) :: in
+
+    real(dp), dimension(size(in, 1), size(in, 2)), intent(out) :: out
+    integer, intent(out), optional :: parts_in_region
+
+    integer :: i, dim, iout
+
+    real(dp), dimension(3) :: maxis, minis, dist
+    logical :: ok
+
+    iout = 0
+    ! loop over each positions in in_arr
+    do i = 1, size(in, 2)
+       ok = .true.
+       dist = in(:, i) - center
+
+       ! correct the distance with boundary conditions
+       do dim = 1, 3
+          if (dist(dim) >  0.5) dist(dim) = dist(dim) - 1
+          if (dist(dim) < -0.5) dist(dim) = dist(dim) + 1
+
+          dist(dim) = abs(dist(dim))
+
+          if (dist(dim) > width(dim)) then
+             ok = .false.
+             exit
+          end if
+       end do
+
+       if (ok) then
+          iout = iout + 1
+          out(:, iout) = in(:, i)
+       end if
+    end do
+
+    parts_in_region = iout
+  end subroutine filter_region
 end module misc
 !-------------------------------------
 ! To interface
