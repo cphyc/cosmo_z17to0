@@ -13,6 +13,7 @@ module convolution
      procedure :: init_A => conv_init_A
      procedure :: init_B => conv_init_B
      procedure :: execute => conv_execute
+     procedure :: free => conv_free
   end type CONV_T
 
   real(dp), parameter :: pi = 3.14159265358979d0
@@ -53,15 +54,15 @@ contains
     complex(dp), dimension(size(in, 1), size(in, 2),&
          & size(in, 3)) :: cplx_in
 
-    type(C_PTR) :: plan, data
+    type(C_PTR) :: plan
 
-    integer :: L, N, M, flags
+    integer :: L, N, M
 
     L = size(in, 1)
     M = size(in, 2)
     N = size(in, 3)
 
-    cplx_in = dcmplx(in)
+    cplx_in = cmplx(in)
 
     ! create plan
     plan = fftw_plan_dft_3d(N, M, L, cplx_in, out, FFTW_FORWARD, FFTW_ESTIMATE)
@@ -81,9 +82,9 @@ contains
 
     complex(dp), dimension(size(in, 1), size(in, 2), size(in, 3)) :: cplx_out
 
-    type(C_PTR) :: plan, data
+    type(C_PTR) :: plan
 
-    integer :: L, N, M, flags
+    integer :: L, N, M
 
     L = size(in, 1)
     M = size(in, 2)
@@ -103,40 +104,40 @@ contains
   end subroutine ifft
 
   !> Prepare the convolution A*B by giving A
-  subroutine conv_init_A (conv_object, A)
+  subroutine conv_init_A (self, A)
     real(dp), intent(in)  :: A(:,:,:)
-    class(CONV_T), intent(out) :: conv_object
+    class(CONV_T), intent(inout) :: self
 
-    allocate(conv_object%A(size(A, 1), size(A, 2), size(A, 3)))
-    conv_object%A = A
+    allocate(self%A(size(A, 1), size(A, 2), size(A, 3)))
+    self%A = A
 
-    call fft(conv_object%A, conv_object%dftA)
+    call fft(self%A, self%dftA)
   end subroutine conv_init_A
 
   !> Prepare the convolution A*B by giving B
-  subroutine conv_init_B (conv_object, B)
+  subroutine conv_init_B (self, B)
     real(dp), intent(in)      :: B(:,:,:)
-    class(CONV_T), intent(inout) :: conv_object
+    class(CONV_T), intent(inout) :: self
 
-    allocate(conv_object%B(size(B, 1), size(B, 2), size(B, 3)))
-    conv_object%B = B
+    allocate(self%B(size(B, 1), size(B, 2), size(B, 3)))
+    self%B = B
 
-    call fft(conv_object%B, conv_object%dftB)
+    call fft(self%B, self%dftB)
   end subroutine conv_init_B
 
   !> Execute the convolution
-  subroutine conv_execute(conv_object)
-    class(CONV_T), intent(inout) :: conv_object
+  subroutine conv_execute(self)
+    class(CONV_T), intent(inout) :: self
 
     integer :: L, M, N
-    L = size(conv_object%dftA, 1)
-    M = size(conv_object%dftA, 2)
-    N = size(conv_object%dftA, 3)
+    L = size(self%dftA, 1)
+    M = size(self%dftA, 2)
+    N = size(self%dftA, 3)
 
-    allocate(conv_object%dftConv(L, M, N))
+    allocate(self%dftConv(L, M, N))
 
-    conv_object%dftConv = conv_object%dftA * conv_object%dftB
-    call ifft(conv_object%dftConv, conv_object%conv)
+    call conv_prod(self%dftA, self%dftB, self%dftConv)
+    call ifft(self%dftConv, self%conv)
   end subroutine conv_execute
 
   !> Compute the convolution product of A, B in fourier space
@@ -159,8 +160,11 @@ contains
 
   end subroutine conv_prod
 
-  subroutine conv_hist3d(data, nbin, hist, bins)
+  !>
+  subroutine conv_hist3d(data, nbin, weights, hist, bins)
     real(dp), dimension(:,:), intent(in) :: data ! data(ndim, nparts)
+    real(dp), dimension(size(data, 2)), &
+         intent(in), optional            :: weights ! weights(nparts)
     integer, intent(in)                  :: nbin
 
     real(dp), dimension(nbin, nbin, nbin), intent(out)   :: hist
@@ -206,9 +210,26 @@ contains
           print*, (data(:, part_i) - maxis) == 0
           print*, i, j, k
        end if
-       hist(i, j, k) = hist(i, j, k) + 1
+
+       if (present(weights)) then
+          hist(i, j, k) = hist(i, j, k) + weights(part_i)
+       else
+          hist(i, j, k) = hist(i, j, k) + 1
+       end if
     end do
 
     print*, nparts, ndim
   end subroutine conv_hist3d
+
+  subroutine conv_free(self)
+    class(CONV_T), intent(inout) :: self
+    if (allocated(self%A)) deallocate(self%A)
+    if (allocated(self%B)) deallocate(self%B)
+    if (allocated(self%conv)) deallocate(self%conv)
+
+    if (allocated(self%dftA)) deallocate(self%dftA)
+    if (allocated(self%dftB)) deallocate(self%dftB)
+    if (allocated(self%dftConv)) deallocate(self%dftConv)
+
+  end subroutine conv_free
 end module convolution
