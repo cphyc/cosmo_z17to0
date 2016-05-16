@@ -4,7 +4,7 @@ FCNAME=intelem
 MODULENAME=_tools
 SIGFILE=tools.pyf
 SKIPFUN=parse_params read_info_headers read_brick_header read_brick_data read_particle read_mergertree_headers_1 read_mergertree_headers_2 read_mergertree_parent_of read_1 read_1_dynamics read_2_dummy read_2 read_region
-SOURCES=compute.f90 misc.f90 io.f90
+SOURCES=types.f90 compute.f90 misc.f90 io.f90
 LIBS=$(shell pwd)/../third_party/FLAP/shared/libflap.so
 INCLUDEDIR=../dist-no-p/mod
 
