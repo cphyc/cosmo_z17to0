@@ -2,8 +2,8 @@
 modes		=dist dist-no-parallel debug
 
 [common-variables]
-$cflags		=-c -i4 -r8 -gen-interfaces -warn interfaces -std15
-$lflags		=-std15
+$cflags		=-c -i4 -r8 -gen-interfaces -warn interfaces -std15 -lfftw3 -L/softs/fftw/3.3.4-pureintel/lib -I/softs/fftw/3.3.4-pureintel/include
+$lflags		=-std15 -fPIC -lfftw3 -L/softs/fftw/3.3.4-pureintel/lib
 
 [template-dir]
 mod_dir		=./mod/
@@ -25,7 +25,7 @@ template	=template-dist-no-p-dir
 help		=Compile for running
 compiler	=intel
 cflags		=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -traceback -fPIC
-lflags		=$lflags -traceback -fPIC
+lflags		=$lflags -traceback
 jobs		=4
 
 [dist]
@@ -40,5 +40,5 @@ jobs		=4
 template	=template-dir
 1help		=Compile for debugging
 compiler	=intel
-cflags		=$cflags -O0 -fno-alias -fno-fnalias  -g -debug -traceback -check all  -implicitnone -warn all -fpe0 -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs
-lflags		=$lflags -g -O0 -debug
+cflags		=$cflags -O0 -fno-alias -fno-fnalias -implicitnone -warn all -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs -g -check all -fpe0 -traceback -debug extended
+lflags		=$lflags -g -O0 -debug -g -check all -fpe0 -warn -traceback -debug extended
