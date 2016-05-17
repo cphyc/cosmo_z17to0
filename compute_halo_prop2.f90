@@ -210,7 +210,7 @@ program compute_halo_prop
               end if
            end do
            step_i = x*nstep**2 + y*nstep + z + 1
-           write(*, '(a, i4,    a,   i4,       x,  a, i5, x, a, 2(3f7.4,x))') &
+           write(*, '(a, i8,    a,   i4,       x,  a, i5, x, a, 2(3f7.4,x))') &
                 'step', step_i, '/', nstep**3, &
                 'ncpu=', tmp_int, ', box', X0, X1
            allocate(m_in_box(max_nparts), pos_in_box(infos%ndim, max_nparts), &
