@@ -4,16 +4,17 @@ program compute_halo_prop
   use types
   use flap, only : command_line_interface
   use compute
+  use convolution
   implicit none
 
   !-------------------------------------
   ! Parameters
   !-------------------------------------
   character(len=200) :: param_output_path
-  integer :: param_from, param_to, param_output_number
+  integer            :: param_output_number
   integer, parameter :: NPARTICLE_TO_PROBE_HALO = 50, NCPU_PER_HALO = 10
-  real(dp) :: param_min_m, param_max_m
-  integer :: param_verbosity
+  real(dp)           :: param_min_m, param_max_m
+  integer            :: param_verbosity
 
   type(command_line_interface)               :: cli
   !-------------------------------------
@@ -26,16 +27,6 @@ program compute_halo_prop
   type(MEMBERS_T), dimension(:), allocatable :: members
   integer                                    :: nbodies, nb_of_halos, nb_of_subhalos, nDM
   real(sp)                                   :: aexp_tmp, age_univ
-  !-------------------------------------
-  ! Merger tree data
-  !-------------------------------------
-  ! integer,  allocatable, dimension(:)      :: mt_nhalos, mt_nsubhalos
-  ! real(sp), dimension(:), allocatable      :: mt_aexp, mt_omega_t, mt_age_univ, time
-  ! real(sp), dimension(:, :), allocatable   :: mt_pos, mt_vel, initial_pos
-  ! integer                                  :: mt_nsteps, nsteps, nhalos
-  ! integer                                  :: initial_halo_i, current_halo, parent_halo, istep, prev, father, step, max_nhalo
-  ! integer, dimension(:), allocatable       :: tmp_nhalos, halos_z0
-  ! integer, dimension(:), allocatable       :: parent, parent_at_step
   !-------------------------------------
   ! Particle data
   !-------------------------------------
@@ -52,16 +43,18 @@ program compute_halo_prop
   !-------------------------------------
   ! Halo properties
   !-------------------------------------
-  real(dp), dimension(:,:,:), allocatable    :: I_t
+  real(dp), dimension(:,:,:), allocatable    :: I_t, density
   real(dp), dimension(:), allocatable        :: m_in_halo, m_in_box
-  real(dp), dimension(:, :), allocatable     :: pos_in_halo
+  real(dp), dimension(:, :), allocatable     :: pos_in_halo,&
+       & pos_around_halo, grid
   integer, dimension(:), allocatable         :: ids_in_box
   real(dp), dimension(:, :), allocatable     :: pos_in_box
   real(dp)                                   :: mtot
   real(dp), dimension(3)                     :: pos_mean, pos_std
   integer                                    :: halo_i, halo_counter, part_i
-  integer                                    :: part_counter
+  integer                                    :: part_counter, parts_in_region
   logical, dimension(:), allocatable         :: halo_found_mask
+  type(CONV_T)                               :: conv
   !-------------------------------------
   ! Tmp variables
   !-------------------------------------
@@ -85,8 +78,6 @@ program compute_halo_prop
        description='Compute the FFT of each halo given and its surrounding')
   call cli%add(switch='--brick', help='Path for brick file that contains the halos', &
        act='store', def='/data52/Horizon-AGN/TREE_DM_celldx2kpc_SC0.9r/tree_bricks782')
-  call cli%add(switch='--cpu-from', help='First cpu to use', act='store', def='1')
-  call cli%add(switch='--cpu-to', help='Last cpu to use', act='store', def='4096')
   call cli%add(switch='--info-file', help='Information file about simulation', &
        act='store', def='/data52/Horizon-AGN/OUTPUT_DIR/output_00782/info_00782.txt')
   call cli%add(switch='--margin', help='margin', act='store', def='0.15')
@@ -104,8 +95,6 @@ program compute_halo_prop
        act='store', def='/data52/Horizon-AGN/OUTPUT_DIR')
   call cli%add(switch='--verbose', help='Verbosity', act='store', def='0')
 
-  call cli%get(switch='--cpu-to', val=param_to)
-  call cli%get(switch='--cpu-from', val=param_from)
   call cli%get(switch='--min-mass', val=param_min_m)
   call cli%get(switch='--max-mass', val=param_max_m)
   call cli%get(switch='--output-path', val=param_output_path)
@@ -148,11 +137,7 @@ program compute_halo_prop
   allocate(I_t(3, 3, nDM))
   I_t = 0
 
-  if (param_nstep == 1) then
-     max_nparts = 2**30
-  else
-     max_nparts = 2**31 / (param_nstep**3)
-  end if
+  max_nparts = 2**30
 
   allocate (halo_found_mask(nDM))
   halo_found_mask = .false.
@@ -183,6 +168,7 @@ program compute_halo_prop
                 'ncpu=', tmp_int, ', box', X0, X1
            allocate(m_in_box(max_nparts), pos_in_box(infos%ndim, max_nparts), &
                 ids_in_box(max_nparts))
+           ids_in_box = 0
            !-------------------------------------
            ! Loop over all cpus listed, read the particle and save them
            !-------------------------------------
@@ -231,7 +217,8 @@ program compute_halo_prop
                    posDM(3, halo_i) >= X0(3) .and. posDM(3, halo_i) < X1(3) .and. &
                    (.not. halo_found_mask(halo_i)) ) then
                  allocate(pos_in_halo(infos%ndim, members(halo_i)%parts), &
-                      m_in_halo(members(halo_i)%parts))
+                      m_in_halo(members(halo_i)%parts),&
+                      pos_around_halo(infos%ndim, max_nparts) )
 
                  counter = 0
                  do part_i = 1, members(halo_i)%parts
@@ -259,21 +246,38 @@ program compute_halo_prop
                     mtot = sum(m_in_halo)
                     allocate(tmp_dblarr(3, 3))
 
-                    ! !----------------------------------------
-                    ! ! Read particles in neighboorhood
-                    ! !----------------------------------------
-                    ! call read_region(pos_mean, )
+                    !----------------------------------------
+                    ! Get particles in neighboorhood
+                    !----------------------------------------
+                    call filter_region(pos_mean, pos_std,&
+                         & pos_in_box, pos_around_halo, parts_in_region)
+
                     !-------------------------------------
-                    ! Compute
+                    ! Estimate density
                     !-------------------------------------
-                    call compute_inertia_tensor(m_in_halo, pos_in_halo, tmp_dblarr)
-                    I_t(:, :, halo_i) = tmp_dblarr
-                    write(10, '(i12, 11ES14.6e2)') idDM(halo_i), mDM(halo_i), &
-                         pos_mean(1), pos_mean(2), pos_mean(3), &
-                         tmp_dblarr(1, 1), tmp_dblarr(1, 2), tmp_dblarr(1, 3), &
-                                           tmp_dblarr(2, 2), tmp_dblarr(2, 3), &
-                                                             tmp_dblarr(3, 3)
-                    deallocate(tmp_dblarr)
+                    allocate(grid(infos%ndim, 100), density(100, 100, 100))
+                    call conv_hist3d(data=pos_around_halo(:, :parts_in_region),&
+                         nbin=100, hist=density, bins=grid)
+
+                    !----------------------------------------
+                    ! Compute the FFt
+                    !----------------------------------------
+                    call conv%init_A(density)
+
+                    ! TODO: loop over sigmas
+                    ! TODO: convert sizes into sigmas
+                    block
+                      real(dp) :: gaussian(100, 100, 100)
+                      real(dp) :: sigma
+                      sigma = 1
+                      call kernel_gaussian3d(100, sigma, gaussian)
+                      call conv%init_B(gaussian)
+                      call conv%execute()
+                      call conv%free()
+                    end block
+
+                    deallocate(grid, density)
+
                  else
                     if (param_verbosity >= 3) then
                        write(*, '(a,i10,a,i10,a,i10,a)') 'halo n°', halo_i, ' is incomplete: ', &
@@ -286,6 +290,7 @@ program compute_halo_prop
 
            deallocate(order)
            deallocate(m_in_box, pos_in_box, ids_in_box)
+           deallocate(pos_around_halo)
         end do
      end do
   end do
