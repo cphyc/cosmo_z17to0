@@ -137,12 +137,14 @@ program compute_halo_prop
   !-------------------------------------
   ! Read brick file
   !-------------------------------------
-  call cli%get(switch='--info-file', val=tmp_char)
   print*, ''
-  print*, 'Reading brick file "' // trim(tmp_char) // '"…'
-  call read_info_headers(tmp_char, infos)
+  print*, 'Reading info file'
+  call read_info_headers(param_output_path, param_output_number, infos)
 
+
+  print*, ''
   call cli%get(switch='--brick', val=tmp_char)
+  print*, 'Reading brick file ', trim(tmp_char)
   call read_brick_header(tmp_char, infos, nbodies, aexp_tmp, age_univ,&
        nb_of_halos, nb_of_subhalos)
   nDM = nb_of_halos + nb_of_subhalos
