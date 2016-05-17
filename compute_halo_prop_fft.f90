@@ -285,12 +285,12 @@ program compute_halo_prop
                     end if
                  end if
                  deallocate(pos_in_halo, m_in_halo)
+                 deallocate(pos_around_halo)
               end if
            end do
 
            deallocate(order)
            deallocate(m_in_box, pos_in_box, ids_in_box)
-           deallocate(pos_around_halo)
         end do
      end do
   end do
