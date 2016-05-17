@@ -252,13 +252,13 @@ contains
 
     integer, intent(in)                            :: nb_of_DM
     logical, intent(in)                            :: DM_type
-    class(INFOS_T), intent(in)                      :: infos
+    class(INFOS_T), intent(in)                     :: infos
 
     real(kind=8), intent(out), dimension(nb_of_DM)             :: mDM, rvirDM
     real(kind=8), intent(out), dimension(nb_of_DM)             :: mvirDM, TvirDM, hlevel
     real(kind=8), intent(out), dimension(infos%ndim, nb_of_DM) :: LDM, posDM
     integer, intent(out), dimension(nb_of_DM)                  :: idDM
-    class(MEMBERS_T), dimension(nb_of_DM), intent(out)          :: members
+    class(MEMBERS_T), dimension(nb_of_DM), intent(out)         :: members
 
     integer                             :: nb_of_parts, idh, mylevel, hosthalo
     integer                             :: hostsub, nbsub, nextsub
