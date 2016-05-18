@@ -160,9 +160,10 @@ contains
 
   end subroutine conv_prod
 
-  !>
+  !! Compute the 3d histogram of data, using nbin and weights and
+  !! store it into bins
   subroutine conv_hist3d(data, nbin, weights, hist, bins)
-    real(dp), dimension(:,:), intent(in) :: data ! data(ndim, nparts)
+    real(dp), dimension(:,:), intent(in) :: data !! data(ndim, nparts)
     real(dp), dimension(size(data, 2)), &
          intent(in), optional            :: weights ! weights(nparts)
     integer, intent(in)                  :: nbin
@@ -220,6 +221,69 @@ contains
 
     print*, nparts, ndim
   end subroutine conv_hist3d
+
+  !! Estimate the density
+  subroutine conv_density(data, nbin, dens, edges)
+    real(dp), dimension(:,:), intent(in) :: data !! data(ndim, nparts)
+    integer, intent(in)                  :: nbin
+
+    real(dp), dimension(nbin, nbin, nbin), intent(out)   :: dens
+    real(dp), dimension(3, nbin+1), intent(out), optional:: edges
+
+    real(dp), dimension(3) :: maxis, minis, spans
+
+    integer :: i, j, k, part_i, ndim, nparts, i0, j0, k0, imax, jmax, kmax, imin, jmin, kmin
+    real(dp) :: ri, rj, rk
+
+    ! get the dimensions
+    ndim = size(data, 1)
+    nparts = size(data, 2)
+    ! compute the bins
+    maxis = maxval(data, 2)
+    minis = minval(data, 2)
+
+    spans = (maxis - minis)
+
+    do i = 1, nbin + 1
+       edges(:, i) = minis + spans * (i-1) / nbin
+    end do
+    print*, minis, maxis
+
+    print*, nparts
+    ! project the data onto the bins
+    do part_i = 1, nparts
+       ! get the position in the grid
+       ri = (data(1, part_i) - minis(1)) * nbin / spans(1) + 0.5
+       rj = (data(2, part_i) - minis(2)) * nbin / spans(2) + 0.5
+       rk = (data(3, part_i) - minis(3)) * nbin / spans(3) + 0.5
+
+       ! the max and min are actually only half in leftmost/rightmost bin
+       ! so the min has ri =  0.5
+       ! and the max has ri = nbin + 0.5
+
+       i0 = floor(ri)
+       j0 = floor(rj)
+       k0 = floor(rk)
+
+       imin = max(1, i0)
+       jmin = max(1, j0)
+       kmin = max(1, k0)
+
+       imax = min(nbin, i0 + 1)
+       jmax = min(nbin, j0 + 1)
+       kmax = min(nbin, k0 + 1)
+
+       do k = kmin, kmax
+          do j = jmin, jmax
+             do i = imin, imax
+                ! add the proportion of the particle in the box
+                dens(i, j, k) = dens(i, j, k) + abs((ri - i)*(rj - j)*(rk - k))
+             end do
+          end do
+       end do
+    end do
+
+  end subroutine conv_density
 
   subroutine conv_free(self)
     class(CONV_T), intent(inout) :: self
