@@ -162,14 +162,14 @@ contains
 
   !! Compute the 3d histogram of data, using nbin and weights and
   !! store it into bins
-  subroutine conv_hist3d(data, nbin, weights, hist, bins)
+  subroutine conv_hist3d(data, nbin, weights, hist, edges)
     real(dp), dimension(:,:), intent(in) :: data !! data(ndim, nparts)
     real(dp), dimension(size(data, 2)), &
          intent(in), optional            :: weights ! weights(nparts)
     integer, intent(in)                  :: nbin
 
-    real(dp), dimension(nbin, nbin, nbin), intent(out)   :: hist
-    real(dp), dimension(3, nbin), intent(out), optional  :: bins
+    real(dp), dimension(nbin, nbin, nbin), intent(out)    :: hist
+    real(dp), dimension(3, nbin+1), intent(out), optional :: edges
 
     real(dp), dimension(3) :: maxis, minis, spans
 
@@ -178,18 +178,18 @@ contains
     ! get the dimensions
     ndim = size(data, 1)
     nparts = size(data, 2)
-    ! compute the bins
+    ! compute the edges
     maxis = maxval(data, 2)
     minis = minval(data, 2)
     spans = maxis - minis
 
-    do i = 1, nbin
-       bins(:, i) = minis + (maxis - minis) * (i-1) / nbin
+    do i = 1, nbin + 1
+       edges(:, i) = minis + (maxis - minis) * (i-1) / nbin
     end do
     print*, minis, maxis
 
     print*, nparts
-    ! project the data onto the bins
+    ! project the data onto the edges
     do part_i = 1, nparts
        ! get the position in the grid
        i = floor((data(1, part_i) - minis(1)) * nbin / spans(1)) + 1
