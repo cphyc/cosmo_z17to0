@@ -7,7 +7,7 @@ module extrema
   integer, allocatable, dimension(:)     :: peak_type
 
   integer :: NPEAKS
-  
+
   private :: NPEAKS
 
 contains
@@ -17,7 +17,7 @@ contains
 
     NPEAKS = maxnpeak
   end subroutine set_max_npeaks
-  
+
   !! Find the maximum of the field, and store them in the common data of the module
   !! args:
   !!   - real(dp) field(N1, N2, N3), the field

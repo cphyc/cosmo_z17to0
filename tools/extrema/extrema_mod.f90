@@ -1,4 +1,4 @@
-!   this is old cartezian extremum code adapted to F90 
+!   this is old cartezian extremum code adapted to F90
 
 !   May  , 2012, Dmitri Pogosyan    -   change to planar input of 3D boxes
 !   March, 2012, Dmitri Pogosyan    -   first rewrite of an old code
@@ -51,10 +51,11 @@ CONTAINS
     REAL(DP)                :: am(nd,nd),vm(nd),xm(nd)
     INTEGER(I8B)            :: NCHUNK,NCHUNKE
     INTEGER(I4B)            :: NPROC,OMP_GET_THREAD_NUM
-       
+
+    logical :: stop_now
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Data read-in and setup
 
-    
+
     NPIX = product(int(nn(1:nd),I8B))
     if (allocated(l_map)) deallocate(l_map)
     allocate( l_map(0:NPIX-1) )     ! Allocate index map
@@ -65,7 +66,7 @@ CONTAINS
        n_ext_up    = ubound(ext,1)
        ext(:)%typ  = -1
        ifjustprint = .false.
-    else 
+    else
        write(0,*) 'array to store extrema is not supplied, just print out'
        ifjustprint  = .true.
     endif
@@ -84,9 +85,11 @@ CONTAINS
     NCHUNKE = (n_ext_up - n_ext_low + 1)/NPROC
 
     n_ext = 0
+    stop_now = .false.
 !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(dtc,ic,bfit,am,vm,xm,ifextremum,extc) FIRSTPRIVATE(n_ext,neighbour_list) NUM_THREADS(NPROC)
 !$OMP DO SCHEDULE(DYNAMIC,NCHUNK)
     do ic = 0, NPIX-1
+       if (stop_now) continue
        call set_current_neighbours(dt,ic,nn,nd,neighbour_list,nneigh)
 ! fit quadratic to the neightbours
        call quadratic_fit(neighbour_list,nneigh,nparam,bfit)
@@ -103,7 +106,7 @@ CONTAINS
           else
              if ( n_ext >= NCHUNKE ) then
                 write(0,*), 'Run out of output storage',n_ext,NCHUNKE,n_ext_low,n_ext_up,'exiting'
-                stop
+                stop_now = .true.
              endif
              ext(n_ext_low + OMP_GET_THREAD_NUM()*NCHUNKE + n_ext) = extc
              n_ext = n_ext + 1
@@ -156,7 +159,7 @@ CONTAINS
        AA(:,i) = neighbour_list(:)%xyz(i)
        AA(:,i+nd) = 0.5_dp*AA(:,i)**2
     enddo
-    
+
     ic=1
     do j = 2, nd
        do i = 1, j-1
@@ -192,7 +195,7 @@ CONTAINS
     do i = 1, nneigh
        ijk = ikvadr(neighbour_list(i)%xyz(1:nd)+ijkc,nn)
        ineigh = grid_to_index(ijk,nn,nd)
-       neighbour_list(i)%pix = ineigh 
+       neighbour_list(i)%pix = ineigh
        neighbour_list(i)%val = dt(ineigh) - dt(icell)
     enddo
     return
@@ -217,9 +220,9 @@ CONTAINS
     integer(I4B), intent(in) :: nn(:)
     real(DP)                 :: fkvadr(size(nn))
 
-    where (xyz < -0.5d0 ) 
+    where (xyz < -0.5d0 )
        fkvadr = xyz + nn - 1.d-5
-    elsewhere (xyz >= nn-0.5d0) 
+    elsewhere (xyz >= nn-0.5d0)
        fkvadr = xyz - nn + 1.d-5
     elsewhere
        fkvadr = xyz
@@ -275,12 +278,12 @@ CONTAINS
        index_to_grid(i) = icell/ibase
        icell = icell - index_to_grid(i)*ibase
     enddo
-    index_to_grid(1) = icell   
+    index_to_grid(1) = icell
     return
     END FUNCTION index_to_grid
 
     SUBROUTINE quadratic_fit(neighbour_list,nneigh,nparam,bfit)
-    INTEGER(I4B),     intent(in)  :: nneigh,nparam 
+    INTEGER(I4B),     intent(in)  :: nneigh,nparam
     TYPE(NEIGH_DATA), intent(in)  :: neighbour_list(:)
     real(DP),         intent(out) :: bfit(:)
 
@@ -380,11 +383,11 @@ CONTAINS
     INTEGER(I4B)      :: WORK(10)
     INTEGER(I4B)      :: INFO
 
-    ext%val       = dc + DOT_PRODUCT(x,0.5_dp*MATMUL(a,x)+v) 
+    ext%val       = dc + DOT_PRODUCT(x,0.5_dp*MATMUL(a,x)+v)
     ext%pos(1:nd) = x + index_to_grid(vert,nn,nd)
     ext%pix       = grid_to_index(nint(fkvadr(ext%pos(1:nd),nn)),nn,nd)
 
-    ! Find eigenvalues    
+    ! Find eigenvalues
     call DSYEV( 'N','L',nd,a,nd,ext%eig,WORK,10,INFO )
 
    ! Set type
