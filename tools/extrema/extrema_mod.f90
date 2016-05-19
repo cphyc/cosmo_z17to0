@@ -28,7 +28,7 @@ END TYPE NEIGH_DATA
 
 INTEGER(I8B)                              :: JITTER=0
 INTEGER(I8B), allocatable, dimension(:)   :: l_map
-REAL(DP),     allocatable,dimension(:,:)  :: CNA, AtCNA
+REAL(DP),     allocatable, dimension(:,:) :: CNA, AtCNA
 
 PUBLIC  :: FIND_EXTREMA
 
@@ -56,6 +56,7 @@ CONTAINS
 
     
     NPIX = product(int(nn(1:nd),I8B))
+    if (allocated(l_map)) deallocate(l_map)
     allocate( l_map(0:NPIX-1) )     ! Allocate index map
     l_map = 0
 
@@ -144,6 +145,9 @@ CONTAINS
     REAL(DP),  dimension(nneigh,nneigh)  :: CNpp
 
     integer(I4B)                         :: i,j,ic
+
+    if (allocated(CNA)) deallocate(CNA)
+    if (allocated(AtCNA)) deallocate(AtCNA)
     allocate(CNA(nneigh,nparam))
     allocate(AtCNA(nparam,nparam))
 

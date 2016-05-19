@@ -18,9 +18,9 @@ LAPACK  = -I$(MKLROOT)/include -mkl
 
 LAPACKLIB = $(LAPACK) -lpthread
 
-CFLAGS=-Ofast -fp-model fast=2 -static -free -cpp -xHost $(LAPACKLIB)
+CFLAGS=-Ofast -fp-model fast=2 -static -free -cpp -xHost $(LAPACKLIB) -traceback
 
-all: _tools.so convolution.so readtree.so
+all: _tools.so convolution.so readtree.so extrema.so
 
 _tools.pyf: $(SOURCES)
 	$(F2PY) -h $@ --overwrite-signature -m $(basename $@) $^ skip: $(SKIPFUN) :  \
@@ -44,7 +44,7 @@ readtree.so: readtree.f90
 		> /dev/null
 
 extrema.pyf: extrema.f90
-	$(F2PY) -h $@ -m $(basename $@) $^
+	$(F2PY) -h $@ -m $(basename $@) $^ --overwrite-signature > /dev/null
 
 extrema.so: extrema.pyf extrema/extrema_types.f90 extrema/extrema_mod.f90 extrema.f90
 	cd extrema && make objects
@@ -53,7 +53,8 @@ extrema.so: extrema.pyf extrema/extrema_types.f90 extrema/extrema_mod.f90 extrem
 		-L/softs/fftw/3.3.4-pureintel/lib -I./include \
 		-I/softs/intel/compilers_and_libraries_2016.3.210/linux/mkl/include\
 		--fcompiler=$(FCNAME) --compiler=$(CCNAME) \
-		--f90flags="$(CFLAGS) -mkl -lpthread" --link-lapack_opt
+		--f90flags="$(CFLAGS) -mkl -lpthread" --link-lapack_opt \
+		> /dev/null
 
 clean:
 	cd extrema && make cleanall
