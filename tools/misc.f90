@@ -25,20 +25,20 @@ module misc
      subroutine mean_2(array, mean, n, m)
        integer, intent(in) :: n, m
        real(kind=8), intent(in), dimension(n, m) :: array
-       real(kind=8), intent(out), dimension(n) :: mean
+       real(kind=8), intent(out), dimension(n)   :: mean
      end subroutine mean_2
   end interface meanval
 
   interface stddev
-     subroutine stddev_1(array, mean, n)
+     subroutine stddev_1(array, std, n)
        integer, intent(in) :: n
        real(kind=8), intent(in), dimension(n) :: array
-       real(kind=8), intent(out) :: mean
+       real(kind=8), intent(out) :: std
      end subroutine stddev_1
-     subroutine stddev_2(array, mean, n, m)
+     subroutine stddev_2(array, std, n, m)
        integer, intent(in) :: n, m
        real(kind=8), intent(in), dimension(n,m) :: array
-       real(kind=8), intent(out), dimension(n) :: mean
+       real(kind=8), intent(out), dimension(n)  :: std
      end subroutine stddev_2
   end interface stddev
 contains
@@ -589,12 +589,15 @@ contains
 
   end subroutine fill
 
-  subroutine filter_region(center, width, in, out, parts_in_region)
+  subroutine filter_region(center, width, idsin, in, idsout, out, parts_in_region, &
+       order)
     real(dp), dimension(3), intent(in)    :: center, width
     real(dp), dimension(:, :), intent(in) :: in
-
+    integer, dimension(:), intent(in) :: idsin
+    integer, dimension(:), intent(in), optional :: order ! if the idsin have been sorted
     real(dp), dimension(size(in, 1), size(in, 2)), intent(out) :: out
     integer, intent(out), optional :: parts_in_region
+    integer, dimension(:), intent(out) :: idsout
 
     integer :: i, dim, iout
 
@@ -622,12 +625,20 @@ contains
 
        if (ok) then
           iout = iout + 1
+          if (present(order)) then
+             ! get the real id using order array
+             idsout(iout) = idsin(order(i))
+          else
+             idsout(iout) = idsin(i)
+          end if
+
           out(:, iout) = in(:, i)
        end if
     end do
 
     parts_in_region = iout
   end subroutine filter_region
+
 end module misc
 !-------------------------------------
 ! To interface
