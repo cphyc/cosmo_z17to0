@@ -283,6 +283,22 @@ contains
        end do
     end do
 
+    ! ! Correct for the fact that only half of the particles are located on the boundaries
+    ! do k = 1, nbin
+    !    do j = 1, nbin
+    !       do i = 1, nbin
+    !          dens(1, j, k)    = dens(1, j, k) * 2
+    !          dens(nbin, j, k) = dens(nbin, j, k) * 2
+
+    !          dens(i, 1, k)    = dens(i, 1, k) * 2
+    !          dens(i, nbin, k) = dens(i, nbin, k) * 2
+
+    !          dens(i, j, 1)    = dens(1, j, 1) * 2
+    !          dens(i, j, nbin) = dens(i, j, nbin) * 2
+    !       end do
+    !    end do
+    ! end do
+
   end subroutine conv_density
 
   subroutine conv_free(self)
