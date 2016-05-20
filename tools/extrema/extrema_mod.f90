@@ -56,7 +56,7 @@ CONTAINS
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Data read-in and setup
 
 
-    NPIX = product(int(nn(1:nd),I8B))
+    NPIX = product(int(nn(1:nd), I8B))
     if (allocated(l_map)) deallocate(l_map)
     allocate( l_map(0:NPIX-1) )     ! Allocate index map
     l_map = 0
@@ -86,12 +86,14 @@ CONTAINS
 
     n_ext = 0
     stop_now = .false.
-!$OMP PARALLEL DEFAULT(SHARED) PRIVATE(dtc,ic,bfit,am,vm,xm,ifextremum,extc) FIRSTPRIVATE(n_ext,neighbour_list) NUM_THREADS(NPROC)
-!$OMP DO SCHEDULE(DYNAMIC,NCHUNK)
+    !$OMP PARALLEL DEFAULT(SHARED) PRIVATE(dtc,ic,bfit,am,vm,xm,ifextremum,extc) FIRSTPRIVATE(n_ext,neighbour_list) NUM_THREADS(NPROC)
+    !$OMP DO SCHEDULE(DYNAMIC,NCHUNK)
     do ic = 0, NPIX-1
-       if (stop_now) continue
+       ! Early break if stop_now flag is true
+       if (stop_now) cycle
+
        call set_current_neighbours(dt,ic,nn,nd,neighbour_list,nneigh)
-! fit quadratic to the neightbours
+       ! fit quadratic to the neightbours
        call quadratic_fit(neighbour_list,nneigh,nparam,bfit)
        call setmatrix(bfit,am,vm,nd)
        call findextremum(am,vm,xm,nd)
@@ -113,8 +115,8 @@ CONTAINS
           endif
        endif
     enddo
-!$OMP END DO
-!$OMP END PARALLEL
+    !$OMP END DO
+    !$OMP END PARALLEL
 
     DEALLOCATE(l_map)
     return
