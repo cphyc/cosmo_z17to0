@@ -5,7 +5,7 @@ module extrema
 
   real(kind=8), allocatable, dimension(:, :) :: mod_peaks, mod_eigvect
   real(kind=8), allocatable, dimension(:)    :: mod_eigval
-  integer, allocatable, dimension(:)     :: mod_peak_type, mod_index
+  integer, allocatable, dimension(:)         :: mod_peak_type, mod_index
 
   integer :: NPEAKS, NBINS(3), NPROC=1
 
@@ -117,6 +117,7 @@ contains
     integer, intent(in) :: nbin, nsigmastep
 
     real(kind=8), dimension(nbin, nbin, nbin)    :: density, gaussian, smoothed_density
+    real(kind=8), dimension(3, nbin+1)           :: edges
     complex(kind=8), dimension(nbin, nbin, nbin) :: fftdensity, fftgaussian, fftconv
 
     type(EXT_DATA) :: extrema(NPEAKS, nsigmastep)
@@ -125,7 +126,7 @@ contains
     integer  :: ndim, npeak
 
     ! estimate density
-    call conv_density(positions, density, nbin)
+    call conv_density(positions, nbin, density, edges)
 
     ! precompute ffts
     call fft(density, fftdensity)
