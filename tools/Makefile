@@ -34,14 +34,14 @@ _tools.so: _tools.pyf types.o compute.o misc.o io.o
 		--compiler=$(CCNAME) --fcompiler=$(FCNAME) --f90flags="$(CFLAGS)" \
 		> /dev/null
 
-convolution.so: types.o convolution.o
+convolution.so: types.o convolution.f90
 	$(F2PY) -m $(basename $@) -c $^ \
 		--fcompiler=$(FCNAME) --compiler=$(CCNAME) --f90flags="$(CFLAGS)" \
 		only: kernel_gaussian3d fft ifft conv_hist3d conv_prod conv_density : \
 		$(FFTWFLAGS) \
 		> /dev/null
 
-readtree.so: readtree.o
+readtree.so: readtree.f90
 	$(F2PY) -m $(basename $@) -c $^ \
 		--fcompiler=$(FCNAME) --compiler=$(CCNAME) --f90flags="$(CFLAGS)" \
 		> /dev/null
@@ -50,7 +50,7 @@ extrema.pyf: extrema.f90
 	$(F2PY) -h $@  --overwrite-signature -m $(basename $@) $^ skip: extrema_compute_ext : \
 		> /dev/null
 
-extrema.so: convolution.o extrema.pyf extrema/extrema_types.f90 extrema/extrema_mod.f90 extrema.f90
+extrema.so: types.o convolution.o extrema.pyf extrema/extrema_types.f90 extrema/extrema_mod.f90 extrema.f90
 	cd extrema && make objects
 	$(F2PY) -m $(basename $@) -c $^ skip: extrema_compute_ext_ext : \
 		-I./extrema/include -I./modules \
