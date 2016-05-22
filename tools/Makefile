@@ -21,7 +21,7 @@ LAPACK  = -I$(MKLROOT)/include -mkl
 
 LAPACKLIB = $(LAPACK) -lpthread
 
-CFLAGS=-Ofast -fast -fp-model fast=2 -static -free -cpp -xHost $(LAPACKLIB) -traceback -mkl -lpthread -I./modules -fPIC
+CFLAGS=-Ofast -fp-model fast=2 -static -free -cpp $(LAPACKLIB) -traceback -mkl -lpthread -I./modules -fPIC
 
 all: _tools.so convolution.so readtree.so extrema.so
 
@@ -50,18 +50,18 @@ extrema.pyf: extrema.f90
 	$(F2PY) -h $@  --overwrite-signature -m $(basename $@) $^ skip: extrema_compute_ext : \
 		> /dev/null
 
-extrema.so: types.o convolution.o extrema.pyf extrema/extrema_types.f90 extrema/extrema_mod.f90 extrema.f90
+extrema.so: types.o convolution.o extrema.pyf extrema/extrema_types.o extrema/extrema_storage.o extrema/extrema_mod.o extrema.f90
 	cd extrema && make objects
 	$(F2PY) -m $(basename $@) -c $^ skip: extrema_compute_ext_ext : \
 		-I./extrema/include -I./modules \
 		$(MKLFLAGS) \
 		--fcompiler=$(FCNAME) --compiler=$(CCNAME) \
 		--f90flags="$(CFLAGS)" --link-lapack_opt \
-		-L./ -lconvolution \
+		-L./ -lconvolution
 		> /dev/null
 
 %.o: %.f90
-	$(FCC) $(FFTWFLAGS) $(CFLAGS) -I../dist/mod -c $^ -o $@
+	$(FCC) $(FFTWFLAGS) $(CFLAGS) -I../dist/mod -Iextrema/include -c $^ -o $@
 
 
 clean:
