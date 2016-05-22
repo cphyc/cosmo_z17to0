@@ -50,24 +50,32 @@ CONTAINS
     REAL(DP)                :: bfit(nd*(nd+3)/2)
     REAL(DP)                :: am(nd,nd),vm(nd),xm(nd)
     INTEGER(I8B)            :: NCHUNK,NCHUNKE
-    INTEGER(I4B)            :: NPROC,OMP_GET_THREAD_NUM
+    integer(I4B)            :: NPROC,OMP_GET_THREAD_NUM
+    integer :: i
 
     logical :: stop_now
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Data read-in and setup
-
 
     NPIX = product(int(nn(1:nd), I8B))
     if (allocated(l_map)) deallocate(l_map)
     allocate( l_map(0:NPIX-1) )     ! Allocate index map
     l_map = 0
 
+
     if ( PRESENT(ext) ) then
        n_ext_low   = lbound(ext,1)
        n_ext_up    = ubound(ext,1)
-       ext(:)%typ  = -1
+       ext(:)%typ = -1
+       ext(:)%pix = 0
+       do i = 1, 3
+          ext(:)%eig(i) = 0
+          ext(:)%pos(i) = 0
+       end do
+       ext(:)%val = 0
+
        ifjustprint = .false.
     else
-       write(0,*) 'array to store extrema is not supplied, just print out'
+       ! write(0,*) 'array to store extrema is not supplied, just print out'
        ifjustprint  = .true.
     endif
 
@@ -104,7 +112,7 @@ CONTAINS
           call extremum_properties(ic,dtc,nn,nd,am,vm,xm,extc)
           call markextremum(ic,neighbour_list,nneigh,extc%typ)
           if ( ifjustprint ) then
-             write(*,'(3(f7.2,1x),4(e10.3,1x),i1)') extc%pos,extc%eig,extc%val,extc%typ
+             ! write(*,'(3(f7.2,1x),4(e10.3,1x),i1)') extc%pos,extc%eig,extc%val,extc%typ
           else
              if ( n_ext >= NCHUNKE ) then
                 write(0,*), 'Run out of output storage',n_ext,NCHUNKE,n_ext_low,n_ext_up,'exiting'
