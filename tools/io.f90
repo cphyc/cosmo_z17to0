@@ -1,4 +1,5 @@
 module io
+  use types
   use misc
   use compute
   implicit none
@@ -534,6 +535,7 @@ contains
     type(PARTICLE_DATA)  :: dt
     integer :: counter, cpu, i, j, k, dim, part_i
     logical, dimension(:), allocatable :: mask
+    real(8) :: dist
 
     X0 = center-width
     X1 = center+width
@@ -553,6 +555,7 @@ contains
     allocate(data(counter))
 
     ! iterate over each cpus
+    !$OMP PARALLEL DO DEFAULT(firstprivate) shared(data)
     do i = 1, infos%ncpu
        cpu = cpu_list(i)
        if (cpu_list(i) == 0) then
@@ -570,25 +573,23 @@ contains
           do dim = 1, ndim
              ! rule out particles outside region
              ! if the distance is larger than width
-             block
-               real(kind=8) :: dist
 
-               dist = dt%pos(dim, part_i) - center(dim)
-               ! correct distances if farther than 0.5 units
-               if (dist > 0.5) then
-                  dist = dist - 1d0
-                  dt%pos(dim, part_i) = dt%pos(dim, part_i) - 1d0
-               else if (dist < -0.5) then
-                  dist = dist + 1d0
-                  dt%pos(dim, part_i) = dt%pos(dim, part_i) + 1d0
-               else
-                  dist = abs(dist)
-               end if
+             dist = dt%pos(dim, part_i) - center(dim)
+             ! correct distances if farther than 0.5 units
+             if (dist > 0.5) then
+                dist = dist - 1d0
+                dt%pos(dim, part_i) = dt%pos(dim, part_i) - 1d0
+             else if (dist < -0.5) then
+                dist = dist + 1d0
+                dt%pos(dim, part_i) = dt%pos(dim, part_i) + 1d0
+             else
+                dist = abs(dist)
+             end if
 
-               if (dist > width(dim)) then
-                  mask(part_i) = .false.
-               end if
-             end block
+             if (dist > width(dim)) then
+                mask(part_i) = .false.
+             end if
+
           end do
        end do
 
