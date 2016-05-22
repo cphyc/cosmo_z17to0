@@ -3,9 +3,11 @@ program get_tree
   use readtree
   use writetree
   use misc
+  use types
   use flap, only : command_line_interface
   implicit none
 
+  integer, parameter :: LEN_LIST = 10000
   !----------------------------------------
   ! cli params
   !----------------------------------------
@@ -22,25 +24,25 @@ program get_tree
   ! Tree paramters
   !----------------------------------------
   logical          :: stop_now
-  integer(kind=4)  :: halo_id, BushID, step, level, hosthalo, hostsub
-  integer(kind=4)  :: nbsub, nextsub, nb_of_fathers, nb_of_sons
-  real(kind=4)     :: m, macc, px, py, pz, vx, vy, vz, Lx, Ly, Lz
-  real(kind=4)     :: r, ra, rb, rc, ek, ep, et, spin
+  integer(sp)  :: halo_id, BushID, step, level, hosthalo, hostsub
+  integer(sp)  :: nbsub, nextsub, nb_of_fathers, nb_of_sons
+  real(sp)     :: m, macc, px, py, pz, vx, vy, vz, Lx, Ly, Lz
+  real(sp)     :: r, ra, rb, rc, ek, ep, et, spin
 
-  integer(kind=4) :: prevStep, index
+  integer(sp) :: prevStep, index
 
-  real(kind=4), allocatable, dimension(:)    :: m_fathers
-  integer(kind=4), allocatable, dimension(:) :: id_fathers, id_sons
+  real(sp), allocatable, dimension(:)    :: m_fathers
+  integer(sp), allocatable, dimension(:) :: id_fathers, id_sons
 
   ! The list of halos to find
   type halo_list
-     integer(kind=4), dimension(10000) :: list = 0
+     integer(sp), dimension(LEN_LIST) :: list = 0
   end type halo_list
   type(halo_list), dimension(:), allocatable :: halos ! FIXME: be able to have more
-  integer(kind=4), dimension(10000) :: order
+  integer(sp), dimension(LEN_LIST) :: order
   !----------------------------------------
   ! Get the parameters
-  !---------------------------------------- 
+  !----------------------------------------
   call cli%init(progname='get_tree_of_halo')
   call cli%add(switch='--halo-to-treat', help='Halo to treat', &
        act='store', nargs='*', def='-1')
@@ -79,13 +81,13 @@ program get_tree
   stop_now = .false.
   prevStep = 0
   do while (.not. stop_now)
-     ! print*, halo_id, step
+     ! Read a part of the tree
      call iter_tree(stop_now, halo_id, BushID, step, level, hosthalo, hostsub, &
           nbsub, nextsub, nb_of_fathers, nb_of_sons, &
           m, macc, px, py, pz, vx, vy, vz, Lx, Ly, Lz, &
           r, ra, rb, rc, ek, ep, et, spin)
 
-     ! at a new step, reorder the halos to find
+     ! at a new step, reorder the halos to find (see below)
      if (step - prevStep /= 0) then
         prevStep = step
         ! sort the halos at the step
@@ -93,14 +95,22 @@ program get_tree
 
         if (param_verbosity >= 2) then
            write(*, *)    'step :', step
-           if (param_verbosity >= 3) then
-              write(*, *) 'halos:', halos(step)%list(:sizeOf(halos(step)))
+           if ((param_verbosity >= 3)) then
+              block
+                integer :: from, to, s
+                s = sizeOf(halos(step))
+
+                from = size(halos(step)%list) - s + 1
+                to   = size(halos(step)%list)
+                write(*, '(a,1000i8)') 'halos:', halos(step)%list(from:to)
+              end block
            end if
         end if
 
      end if
 
      ! Try to find the current halo in the halo list
+     ! if found, copy it in a new tree
      index = indexOf(halo_id, halos(step)%list)
      if (index > 0) then
         allocate(id_fathers(nb_of_fathers), m_fathers(nb_of_fathers))
@@ -108,15 +118,14 @@ program get_tree
 
         ! add the parents to the next halos to find
         if (nb_of_fathers > 0) then
-           if (step-1 >= 1 ) then
-              call get_fathers(nb_of_fathers, id_fathers, m_fathers)
+           call get_fathers(nb_of_fathers, id_fathers, m_fathers)
 
+           if (nb_of_sons > 0) then
               call get_sons(nb_of_sons, id_sons)
-              ! write(*, "(1x, a, I8)")    'id      :', halo_id
-              ! write(*, "(1x, a, 1000i8)") 'fathers :', id_fathers
-
+           end if
+           if (step-1 >= 1) then
+              ! Append the fathers to the halos to treat next time
               call append(halos(step-1), id_fathers)
-              ! write(*, *)
            end if
         end if
 
@@ -141,9 +150,9 @@ program get_tree
 contains
   subroutine append (self, elements)
     type(halo_list), intent(inout) :: self
-    integer(kind=4), intent(in), dimension(:)  :: elements
-    integer(kind=4), dimension(size(elements)) :: tmp_elements, u_tmp_elements, order_els
-    integer(kind=4), dimension(size(self%list)) :: tmp_list, order_list
+    integer(sp), intent(in), dimension(:)  :: elements
+    integer(sp), dimension(size(elements)) :: tmp_elements, u_tmp_elements, order_els
+    integer(sp), dimension(size(self%list)) :: tmp_list, order_list
 
     integer :: i, from, to, j
 
@@ -183,10 +192,11 @@ contains
     ! find first null index in self
     i = sizeOf(self)+1
 
-    ! TODO: check no overflow
-    self%list(i:i+to-from) = u_tmp_elements(from:to)
-    ! print*, 'WE:', self%list(1:i+to-from)
-
+    if (from > 0) then
+       ! TODO: check no overflow
+       self%list(i:i+to-from) = u_tmp_elements(from:to)
+       ! print*, 'WE:', self%list(1:i+to-from)
+    end if
   end subroutine append
 
   !> Return the index of the last non null element
@@ -196,10 +206,11 @@ contains
 
     integer :: j
 
+    sizeOf = 0
+
     do j = 1, size(self%list)
-       if (self%list(j) == 0) exit
+       if (self%list(j) > 0) sizeOf = sizeOf + 1
     end do
-    sizeOf = j-1
   end function sizeOf
 
 end program get_tree
