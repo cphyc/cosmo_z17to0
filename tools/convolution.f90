@@ -7,8 +7,8 @@ module convolution
   ! use fftw3
 
   type :: CONV_T
-     real(dp), allocatable    :: A(:,:,:), B(:,:,:), conv(:,:,:)
-     complex(dp), allocatable :: dftA(:,:,:), dftB(:,:,:), dftConv(:,:,:)
+     real(kind=8), allocatable    :: A(:,:,:), B(:,:,:), conv(:,:,:)
+     complex(kind=8), allocatable :: dftA(:,:,:), dftB(:,:,:), dftConv(:,:,:)
    contains
      procedure :: init_A => conv_init_A
      procedure :: init_B => conv_init_B
@@ -16,7 +16,7 @@ module convolution
      procedure :: free => conv_free
   end type CONV_T
 
-  real(dp), parameter :: pi = 3.14159265358979d0
+  real(kind=8), parameter :: pi = 3.14159265358979d0
   private :: pi
 
 contains
@@ -27,11 +27,11 @@ contains
   !! kernel: a 3d array containing the kernel
   subroutine kernel_gaussian3d(s, sigma, kernel)
     integer, intent(in) :: s
-    real(dp), intent(in) :: sigma
-    real(dp), dimension(s, s, s), intent(out) :: kernel
+    real(kind=8), intent(in) :: sigma
+    real(kind=8), dimension(s, s, s), intent(out) :: kernel
 
     integer :: i, j, k
-    real(dp) :: sizeo2, sq_sum
+    real(kind=8) :: sizeo2, sq_sum
 
     sizeo2 = s/2.
 
@@ -48,10 +48,10 @@ contains
 
   !> Compute the fft of in, putting the result in out
   subroutine fft(in, out)
-    real(dp), intent(inout), dimension(:,:,:) :: in
-    complex(dp), intent(out), dimension(size(in, 1), size(in, 2),&
+    real(kind=8), intent(inout), dimension(:,:,:) :: in
+    complex(kind=8), intent(out), dimension(size(in, 1), size(in, 2),&
          & size(in, 3)) :: out
-    complex(dp), dimension(size(in, 1), size(in, 2),&
+    complex(kind=8), dimension(size(in, 1), size(in, 2),&
          & size(in, 3)) :: cplx_in
 
     type(C_PTR) :: plan
@@ -76,11 +76,11 @@ contains
   end subroutine fft
 
   subroutine ifft(in, out)
-    complex(dp), intent(inout), dimension(:,:,:) :: in
+    complex(kind=8), intent(inout), dimension(:,:,:) :: in
 
-    real(dp), intent(out), dimension(size(in, 1), size(in, 2), size(in, 3)) :: out
+    real(kind=8), intent(out), dimension(size(in, 1), size(in, 2), size(in, 3)) :: out
 
-    complex(dp), dimension(size(in, 1), size(in, 2), size(in, 3)) :: cplx_out
+    complex(kind=8), dimension(size(in, 1), size(in, 2), size(in, 3)) :: cplx_out
 
     type(C_PTR) :: plan
 
@@ -105,7 +105,7 @@ contains
 
   !> Prepare the convolution A*B by giving A
   subroutine conv_init_A (self, A)
-    real(dp), intent(in)  :: A(:,:,:)
+    real(kind=8), intent(in)  :: A(:,:,:)
     class(CONV_T), intent(inout) :: self
 
     allocate(self%A(size(A, 1), size(A, 2), size(A, 3)))
@@ -116,7 +116,7 @@ contains
 
   !> Prepare the convolution A*B by giving B
   subroutine conv_init_B (self, B)
-    real(dp), intent(in)      :: B(:,:,:)
+    real(kind=8), intent(in)      :: B(:,:,:)
     class(CONV_T), intent(inout) :: self
 
     allocate(self%B(size(B, 1), size(B, 2), size(B, 3)))
@@ -142,8 +142,8 @@ contains
 
   !> Compute the convolution product of A, B in fourier space
   subroutine conv_prod(A, B, C)
-    complex(dp), intent(in)  :: A(:,:,:), B(:,:,:)
-    complex(dp), intent(out) :: C(size(A, 1), size(A, 2), size(A, 3))
+    complex(kind=8), intent(in)  :: A(:,:,:), B(:,:,:)
+    complex(kind=8), intent(out) :: C(size(A, 1), size(A, 2), size(A, 3))
 
     integer :: i,j,k
     do k = 1, size(A, 3)
@@ -163,15 +163,15 @@ contains
   !! Compute the 3d histogram of data, using nbin and weights and
   !! store it into bins
   subroutine conv_hist3d(data, nbin, weights, hist, edges)
-    real(dp), dimension(:,:), intent(in) :: data !! data(ndim, nparts)
-    real(dp), dimension(size(data, 2)), &
+    real(kind=8), dimension(:,:), intent(in) :: data !! data(ndim, nparts)
+    real(kind=8), dimension(size(data, 2)), &
          intent(in), optional            :: weights ! weights(nparts)
     integer, intent(in)                  :: nbin
 
-    real(dp), dimension(nbin, nbin, nbin), intent(out)    :: hist
-    real(dp), dimension(3, nbin+1), intent(out), optional :: edges
+    real(kind=8), dimension(nbin, nbin, nbin), intent(out)    :: hist
+    real(kind=8), dimension(3, nbin+1), intent(out), optional :: edges
 
-    real(dp), dimension(3) :: maxis, minis, spans
+    real(kind=8), dimension(3) :: maxis, minis, spans
 
     integer :: i, j, k, part_i, ndim, nparts
 
@@ -224,16 +224,16 @@ contains
 
   !! Estimate the density
   subroutine conv_density(data, nbin, dens, edges)
-    real(dp), dimension(:,:), intent(in) :: data !! data(ndim, nparts)
+    real(kind=8), dimension(:,:), intent(in) :: data !! data(ndim, nparts)
     integer, intent(in)                  :: nbin
 
-    real(dp), dimension(nbin, nbin, nbin), intent(out)   :: dens
-    real(dp), dimension(3, nbin+1), intent(out), optional:: edges
+    real(kind=8), dimension(nbin, nbin, nbin), intent(out)   :: dens
+    real(kind=8), dimension(3, nbin+1), intent(out), optional:: edges
 
-    real(dp), dimension(3) :: maxis, minis, spans
+    real(kind=8), dimension(3) :: maxis, minis, spans
 
     integer :: i, j, k, part_i, ndim, nparts, i0, j0, k0, imax, jmax, kmax, imin, jmin, kmin
-    real(dp) :: ri, rj, rk
+    real(kind=8) :: ri, rj, rk
 
     ! get the dimensions
     ndim = size(data, 1)
@@ -247,9 +247,7 @@ contains
     do i = 1, nbin + 1
        edges(:, i) = minis + spans * (i-1) / nbin
     end do
-    print*, minis, maxis
 
-    print*, nparts
     ! project the data onto the bins
     do part_i = 1, nparts
        ! get the position in the grid
@@ -312,4 +310,5 @@ contains
     if (allocated(self%dftConv)) deallocate(self%dftConv)
 
   end subroutine conv_free
+
 end module convolution
