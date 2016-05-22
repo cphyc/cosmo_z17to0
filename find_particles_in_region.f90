@@ -81,14 +81,36 @@ program compute_halo_prop
 
   call read_region(center, region_size, infos, data)
 
-  open(newunit=unit, file=param_output_prefix, form='formatted')
+  write(*,*) 'Output to ', trim(param_output_prefix)
+  open(newunit=unit, file=trim(param_output_prefix), form='formatted')
   write(unit, '(a10, a7, 6a14)') 'id', 'cpu', 'x', 'y', 'z'
   do i = 1, size(data)
-     print*, i, data(i)%cpu, size(data(i)%ids)
      do j = 1, size(data(i)%ids)
         write(unit, '(i10, i7, 3ES14.6e2)') data(i)%ids(j), data(i)%cpu, data(i)%pos(:, j)
      end do
   end do
-  print*, size(data)
+
+  write(*,*) 'Output to ', trim(param_output_prefix) // '.bin'
+  open(newunit=unit, file=trim(param_output_prefix) // '.bin', form='unformatted')
+  tmp_int = 1
+  do i = 1, size(data)
+     tmp_int = tmp_int + size(data(i)%ids)
+  end do
+
+  allocate(tmp_dblarr(3, tmp_int), tmp_iarr(tmp_int))
+
+  tmp_int2 = 1
+  do i = 1, size(data)
+     do j = 1, size(data(i)%ids)
+        tmp_iarr(tmp_int) = data(i)%ids(j)
+        tmp_dblarr(:, tmp_int) = data(i)%pos(:, j)
+
+        tmp_int2 = tmp_int2 + 1
+     end do
+  end do
+  write(unit) 2, tmp_int2
+  write(unit) tmp_iarr
+  write(unit) tmp_dblarr
+
   close(unit)
 end program compute_halo_prop
