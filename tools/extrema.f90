@@ -1,14 +1,15 @@
 module extrema
   use convolution
+  use types
   use extrema_mod
-  use extrema_types
+  use extrema_types, only : EXT_DATA, CND_CNTRL_TYPE
+  use extrema_storage
 
   real(kind=8), allocatable, dimension(:, :) :: mod_peaks, mod_eigvect
   real(kind=8), allocatable, dimension(:)    :: mod_eigval
   integer, allocatable, dimension(:)         :: mod_peak_type, mod_index
 
-  integer :: NPEAKS, NBINS(3), NPROC=1
-
+  integer :: NPEAKS, NBINS(3), NPROC = 1
 contains
   !! Call find_extrema from extrema/ files
   !! args:
@@ -26,7 +27,7 @@ contains
 
     ndim = 3
 
-    ctrl%NPROC = NPROC
+    ctrl%NPROC     = NPROC
     ctrl%justprint = .false.
 
     ! flatten the field
@@ -34,6 +35,7 @@ contains
 
     ! get the extrema
     call find_extrema(flattened_field, nn=NBINS, ext=ext, nd=3, cnd_cntrl=ctrl)
+
   end subroutine extrema_compute_ext
 
   !! Find the maximum of the field, and store them in the common data of the module.
@@ -86,6 +88,39 @@ contains
 
   end subroutine extrema_compute
 
+  !! Get the peaks at some stepx
+  !! args:
+  !!   - integer ndim, npeak
+  !! returns:
+  !!   - double peakpos(ndim, npeak)    the position of the peak
+  !!   - double eigvectors(ndim, npeak) the eigenvector of the hessian
+  !!   - double eigvalue(npeak)         the eigenvalue of the hessian
+  !!   - integer peaktype(npeak)        the type of the peak
+  !!   - integer index(npeak)           the index of the peak (in contiguous array, you should reshape it)
+  subroutine extrema_get_i(ndim, npeak, istep, index, peakpos, eigvectors, eigvalues, peaktype)
+    integer, intent(in) :: ndim, npeak, istep
+    real(kind=8), intent(out), dimension(ndim, npeak) :: peakpos
+    real(kind=8), intent(out), dimension(ndim, npeak) :: eigvectors
+    real(kind=8), intent(out), dimension(npeak)       :: eigvalues
+    integer, intent(out), dimension(npeak)            :: peaktype, index
+
+    type(EXT_DATA), dimension(:), allocatable :: ext
+
+    call extrema_pull(ext, istep)
+
+    do i = 1, npeak
+       if (ext(i)%typ >= 0) then
+          peakpos(:, i)    = ext(i)%pos
+          eigvectors(:, i) = ext(i)%eig
+          eigvalues(i)     = ext(i)%val
+          peaktype(i)      = ext(i)%typ
+          index(i)         = ext(i)%pix
+       end if
+    end do
+
+  end subroutine extrema_get_i
+
+
   !! Get the peaks
   !! args:
   !!   - integer ndim, npeak
@@ -110,20 +145,28 @@ contains
 
   end subroutine extrema_get
 
-  subroutine extrema_compute_smooth_space(sigmamin, sigmamax, positions, nbin, nsigmastep)
+  subroutine extrema_compute_smooth_space(sigmamin, sigmamax, positions, nbin, nsigmastep, &
+       sigmas)
     real(kind=8), intent(in) :: sigmamin, sigmamax
     real(kind=8), intent(in) :: positions(:, :)
 
     integer, intent(in) :: nbin, nsigmastep
 
+    real(kind=8), intent(out) :: sigmas(nsigmastep)
+
     real(kind=8), dimension(nbin, nbin, nbin)    :: density, gaussian, smoothed_density
     real(kind=8), dimension(3, nbin+1)           :: edges
     complex(kind=8), dimension(nbin, nbin, nbin) :: fftdensity, fftgaussian, fftconv
 
-    type(EXT_DATA) :: extrema(NPEAKS, nsigmastep)
+    type(EXT_DATA), allocatable, target :: extrema(:, :)
 
     real(kind=8) :: sigma
     integer  :: ndim, npeak
+
+    NPEAKS = nbin ** 3
+    NBINS = (/nbin, nbin, nbin/)
+
+    allocate(extrema(NPEAKS, nsigmastep))
 
     ! estimate density
     call conv_density(positions, nbin, density, edges)
@@ -131,17 +174,12 @@ contains
     ! precompute ffts
     call fft(density, fftdensity)
 
-    ! don't parallelize the extrema computing
-    NPROC = 1
-
     ! iterate over sigmas
-    !$OMP PARALLEL DO DEFAULT(none) &
-    !$OMP PRIVATE(sigma, gaussian, fftgaussian, fftconv, smoothed_gaussian, smoothed_density) &
-    !$OMP SHARED(extrema, nsigmastep, sigmamax, sigmamin, nbin, fftdensity)
     do i = 1, nsigmastep
        sigma = (sigmamax-sigmamin)*(i-1)/nsigmastep + sigmamin
+       sigmas(i) = sigma
 
-       write(*, *) i, sigma
+       print*, sigma
 
        call kernel_gaussian3d(nbin, sigma, gaussian)
        call fft(gaussian, fftgaussian)
@@ -154,7 +192,9 @@ contains
        ! find the peaks
        call extrema_compute_ext(smoothed_density, extrema(:, i))
     end do
-    !$OMP END PARALLEL DO
+
+    call extrema_push(extrema)
+
   end subroutine extrema_compute_smooth_space
 
 end module extrema
