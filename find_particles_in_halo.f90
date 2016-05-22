@@ -79,7 +79,7 @@ program compute_halo_prop
   !-------------------------------------
   integer                                   :: i, j, cpu, i1, i2, counter, x, y, z
   integer                                   :: tmp_int, unit,&
-       & out_unit, center_output_unit, tmp_int2, index 
+       & out_unit, center_output_unit, tmp_int2, index
   character(len=200)                        :: tmp_char
   real                                      :: tmp_real, factor
   logical                                   :: tmp_bool
@@ -100,7 +100,26 @@ program compute_halo_prop
   !-------------------------------------
   ! Read parameters
   !-------------------------------------
-  call parse_params(cli)
+  call cli%init(progname='find_particles_in_halo')
+
+  call cli%add(switch='--output-path', help='Path of the output', &
+       act='store', def='/data52/Horizon-AGN/OUTPUT_DIR')
+  call cli%add(switch='--output-number', help='Number of the output', &
+       act='store', def='2', nargs='+')
+  call cli%add(switch='--verbose', help='Verbosity', &
+       act='store', def='0')
+  call cli%add(switch='--gal-list', help='List of galaxies', act='store', &
+       def='lists/list_kingal_00782.dat')
+  call cli%add(switch='--association-list', help='List of association between galaxy and halo', &
+       act='store', def='lists/associated_halogal_782.dat.bin')
+  call cli%add(switch='--halo-list', help='List of dark matter halo', act='store', &
+       def='lists/list_halo.dat.bin')
+  call cli%add(switch='--brick', help='Path for brick file that contains the halos', &
+       act='store', def='/data52/Horizon-AGN/TREE_DM_celldx2kpc_SC0.9r/tree_bricks782')
+  call cli%add(switch='--output', switch_ab='-o', help='Name of the output file', &
+       act='store', def='data.out')
+
+
   call cli%get(switch='--output-path', val=param_output_path)
   call cli%get_varying(switch='--output-number', val=param_output_number_list)
   call cli%get(switch='--verbose', val=param_verbosity)
@@ -161,20 +180,6 @@ program compute_halo_prop
        & hlevel, LDM, idDM, members)
   print*, '    …red!'
   deallocate(rvirDM, mvirDM, TvirDM, hlevel, LDM)
-
-  print*, ''
-  call cli%get(switch='--halo-to-cpu', val=tmp_char)
-  print*, 'Reading halo to cpu file "' // trim(tmp_char) // '"'
-  call read_list_header(trim(tmp_char), unit, nDM, n_cpu_per_halo)
-  allocate(halo_to_cpu(nDM, n_cpu_per_halo))
-  call read_list_data(unit, nDM, n_cpu_per_halo, halo_to_cpu)
-  ntot_halo = 0
-  do i = 1, nDM
-     if (halo_to_cpu(i, 1) > 0) then
-        ntot_halo = ntot_halo + 1
-     end if
-  end do
-  print*, '        Found', ntot_halo, 'halos!'
 
   if (param_halo_i <= 0) then
      print*, 'Halo_i parameter must be positive.'
