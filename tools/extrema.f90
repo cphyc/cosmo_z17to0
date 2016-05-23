@@ -23,7 +23,7 @@ contains
     type(EXT_DATA), intent(out) :: ext(NPEAKS)
 
     type(CND_CNTRL_TYPE) :: ctrl
-    real(kind=4) :: flattened_field(size(field))
+    real(kind=4)         :: flattened_field(size(field))
 
     ndim = 3
 
@@ -60,11 +60,11 @@ contains
     call extrema_compute_ext(field, ext)
 
     ! store all that in the module vars
-    if (allocated(mod_peaks)) deallocate(mod_peaks)
-    if (allocated(mod_eigvect)) deallocate(mod_eigvect)
-    if (allocated(mod_eigval)) deallocate(mod_eigval)
+    if (allocated(mod_peaks))     deallocate(mod_peaks)
+    if (allocated(mod_eigvect))   deallocate(mod_eigvect)
+    if (allocated(mod_eigval))    deallocate(mod_eigval)
     if (allocated(mod_peak_type)) deallocate(mod_peak_type)
-    if (allocated(mod_index)) deallocate(mod_index)
+    if (allocated(mod_index))     deallocate(mod_index)
 
     !TODO: remove parallel foobars
     npeak = 0
@@ -85,6 +85,8 @@ contains
           mod_index(i)      = ext(i)%pix
        end if
     end do
+
+    ndim = 3
 
   end subroutine extrema_compute
 
