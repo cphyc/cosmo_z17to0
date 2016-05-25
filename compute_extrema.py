@@ -17,6 +17,8 @@ parser.add_argument('--bins', type=int, help='Number of bins', default=64)
 parser.add_argument('--cpus', type=int, help='Number of cpus to use', required=True)
 parser.add_argument('--nsigmas', type=int, help='Number of sigmas to use', required=True)
 parser.add_argument('--out', '-o', type=str, help='Name of the output file', required=True)
+parser.add_argument('--maxratio', type=float, help='maxratio * bins = sigma max', default=1)
+parser.add_argument('--minratio', type=float, help='minratio * bins = sigma min, take sigma min = 1 if None', default=None)
 args = parser.parse_args()
 print(args)
 
@@ -26,7 +28,13 @@ extrema.nbins = np.array([bins, bins, bins])
 extrema.npeaks = bins**3
 extrema.nprocs = args.cpus
 NSIGMAS = args.nsigmas
-sigmas = np.linspace(1, bins, NSIGMAS)
+if args.minratio == None:
+    minsigma = 1
+else:
+    minsigma = int(args.minratio * bins)
+maxsigma = int(args.maxratio * bins)
+
+sigmas = np.linspace(minsigma, maxsigma, NSIGMAS)
 
 #df = pd.read_csv('tmp/536_around', delim_whitespace=True, engine='c', index_col=0)
 # dfcleaned = df[df.x > 0.1][df.y > 0.01][df.z > -0.126]
