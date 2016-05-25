@@ -109,6 +109,7 @@ contains
     class(CONV_T), intent(inout) :: self
 
     allocate(self%A(size(A, 1), size(A, 2), size(A, 3)))
+    allocate(self%dftA(size(A, 1), size(A, 2), size(A, 3)))
     self%A = A
 
     call fft(self%A, self%dftA)
@@ -120,6 +121,7 @@ contains
     class(CONV_T), intent(inout) :: self
 
     allocate(self%B(size(B, 1), size(B, 2), size(B, 3)))
+    allocate(self%dftB(size(B, 1), size(B, 2), size(B, 3)))
     self%B = B
 
     call fft(self%B, self%dftB)
@@ -135,6 +137,7 @@ contains
     N = size(self%dftA, 3)
 
     allocate(self%dftConv(L, M, N))
+    allocate(self%conv(L, M, N))
 
     call conv_prod(self%dftA, self%dftB, self%dftConv)
     call ifft(self%dftConv, self%conv)
@@ -225,14 +228,14 @@ contains
   !! Estimate the density
   subroutine conv_density(data, nbin, dens, edges)
     real(kind=8), dimension(:,:), intent(in) :: data !! data(ndim, nparts)
-    integer, intent(in)                  :: nbin
+    integer, intent(in)                      :: nbin
 
     real(kind=8), dimension(nbin, nbin, nbin), intent(out)   :: dens
     real(kind=8), dimension(3, nbin+1), intent(out), optional:: edges
 
     real(kind=8), dimension(3) :: maxis, minis, spans
 
-    integer :: i, j, k, part_i, ndim, nparts, i0, j0, k0, imax, jmax, kmax, imin, jmin, kmin
+    integer :: i, j, k, part_i, ndim, nparts, i0, j0, k0, imax, jmax, kmax, imin, jmin, kmin, dim
     real(kind=8) :: ri, rj, rk
 
     ! get the dimensions
@@ -281,21 +284,9 @@ contains
        end do
     end do
 
-    ! ! Correct for the fact that only half of the particles are located on the boundaries
-    ! do k = 1, nbin
-    !    do j = 1, nbin
-    !       do i = 1, nbin
-    !          dens(1, j, k)    = dens(1, j, k) * 2
-    !          dens(nbin, j, k) = dens(nbin, j, k) * 2
-
-    !          dens(i, 1, k)    = dens(i, 1, k) * 2
-    !          dens(i, nbin, k) = dens(i, nbin, k) * 2
-
-    !          dens(i, j, 1)    = dens(1, j, 1) * 2
-    !          dens(i, j, nbin) = dens(i, j, nbin) * 2
-    !       end do
-    !    end do
-    ! end do
+    ! Convert the number density into a mass density (assuming uniform mass)
+    ! TODO: don't assume uniform mass
+    dens = dens * nbin**3 / product(maxis-minis)
 
   end subroutine conv_density
 
