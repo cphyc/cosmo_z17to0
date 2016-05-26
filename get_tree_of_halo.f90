@@ -13,7 +13,7 @@ program get_tree
   !----------------------------------------
   type(command_line_interface) :: cli
   integer, allocatable, dimension(:) :: param_halos
-  character(len=128) :: param_output
+  character(len=256) :: param_output, param_tree_file
   integer :: param_verbosity
 
   !----------------------------------------
@@ -50,15 +50,18 @@ program get_tree
        act='store', def='data.out')
   call cli%add(switch='--verbose', help='Verbosity', &
        act='store', def='0')
+  call cli%add(switch='--tree', help='Tree file', &
+       act='store', def='/data33/dubois/H-AGN/MergerTreeHalo/HAGN/tree_rev.dat')
 
   call cli%get_varying(switch='--halo-to-treat', val=param_halos)
   call cli%get(switch='--output', val=param_output)
   call cli%get(switch='--verbose', val=param_verbosity)
+  call cli%get(switch='--tree', val=param_tree_file)
 
   !----------------------------------------
   ! Read the reversed tree
   !----------------------------------------
-  call read_tree('/home/cadiou/data/H-AGN/tree.reversed.dat')
+  call read_tree(param_tree_file)
 
   ! allocate data
   allocate(halos(nsteps))
@@ -87,6 +90,9 @@ program get_tree
           m, macc, px, py, pz, vx, vy, vz, Lx, Ly, Lz, &
           r, ra, rb, rc, ek, ep, et, spin)
 
+     if ((halo_id == param_halos(1)) .and. (step == nsteps)) then
+        write(*, *) 'step=', step, 'level=', level, 'm=', m, '#fathers=', nb_of_fathers, '#sons=', nb_of_sons
+     end if
      ! at a new step, reorder the halos to find (see below)
      if (step - prevStep /= 0) then
         prevStep = step
@@ -94,7 +100,8 @@ program get_tree
         call quick_sort(halos(step)%list, order)
 
         if (param_verbosity >= 2) then
-           write(*, *)    'step :', step
+           write(*, *) ''
+           write(*, *)    'step:', step, 'z=', 1/aexp(nsteps-step+1) - 1
            if ((param_verbosity >= 3)) then
               block
                 integer :: from, to, s
