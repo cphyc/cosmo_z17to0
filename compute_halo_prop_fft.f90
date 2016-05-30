@@ -73,7 +73,7 @@ program compute_halo_prop
   real(dp), allocatable :: gaussian(:, :, :), conv_dens(:, :, :), edges(:, :)
   real(dp) :: sigma, param_around
   integer  :: param_nbin, param_nsigma, isigma
-  real     :: param_sigma_min, param_sigma_max
+  real(dp) :: param_sigma_min, param_sigma_max
   !----------------------------------------
   ! Peaks
   !----------------------------------------
@@ -123,7 +123,7 @@ program compute_halo_prop
   call cli%get(switch='--verbose', val=param_verbosity)
   call cli%get(switch='--nbin', val=param_nbin)
   call cli%get(switch='--sigma-min', val=param_sigma_min)
-  call cli%get(switch='--sigma-min', val=param_sigma_max)
+  call cli%get(switch='--sigma-max', val=param_sigma_max)
   call cli%get(switch='--nsigma', val=param_nsigma)
   call cli%get(switch='--around', val=param_around)
 
@@ -267,7 +267,7 @@ program compute_halo_prop
   !$OMP PRIVATE(mtot, parts_in_region, edges, conv, conv_dens)                 &
   !$OMP PRIVATE(sigma, density, gaussian, index, pos_mean, pos_std, counter)   &
   !$OMP PRIVATE(flattened_field, extrema_ctrl, extrema)                        &
-  !$OMP SCHEDULE(guided, 1)
+  !$OMP SCHEDULE(guided, 5)
   do halo_i = 1, nDM
      ! filter halos outside mass range and not in box
      if ( mDM(halo_i) > param_min_m .and. mDM(halo_i) < param_max_m .and. &
@@ -304,10 +304,6 @@ program compute_halo_prop
            ! correct the positions and get center + stddev
            call correct_positions(pos_in_halo)
            call compute_mean(pos_in_halo, pos_mean)
-           ! do dim = 1, infos%ndim
-           !    call stddev(pos_in_halo(dim, :) - pos_mean(dim), pos_std(dim), &
-           !         members(halo_i)%parts)
-           ! end do
 
            mtot = sum(m_in_halo)
 
@@ -339,9 +335,9 @@ program compute_halo_prop
            ! Iterate over sigma
            !----------------------------------------
            allocate(extrema(param_nbin**3))
-           do isigma = 1, param_nsigma
-              sigma = (param_sigma_max - param_sigma_min) * (isigma - 1.) &
-                   / (param_nsigma - 1.) + param_sigma_min
+           do isigma = 0, param_nsigma - 1
+              sigma = (param_sigma_max - param_sigma_min) * real(isigma, dp) &
+                   / real(param_nsigma - 1, dp) + param_sigma_min
 
               if (param_verbosity >= 4) then
                  write(*, '(i7,a,ES10.3e2,a,i3,a,i3,a)')&
@@ -386,7 +382,7 @@ program compute_halo_prop
            call conv%free()
            deallocate(extrema)
         else
-           if (param_verbosity >= 3) then
+           if (param_verbosity >= 5) then
               write(*, '(a,i10,a,i10,a,i10,a)') 'halo n°', halo_i, ' is incomplete: ', &
                    counter, '/', members(halo_i)%parts, ' particles'
            end if
