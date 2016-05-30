@@ -112,8 +112,10 @@ program compute_halo_prop
   call cli%add(switch='--output-path', help='Path of the simulation output',&
        act='store', def='/data52/Horizon-AGN/OUTPUT_DIR')
   call cli%add(switch='--verbose', help='Verbosity', act='store', def='0')
-  call cli%add(switch='--sigma-min', help='Minimum sigma in kpc')
-  call cli%add(switch='--sigma-max', help='Maximum sigma in kpc')
+  call cli%add(switch='--sigma-min', help='Minimum sigma in kpc', act='store', &
+       required=.true.)
+  call cli%add(switch='--sigma-max', help='Maximum sigma in kpc', act='store', &
+       required=.true.)
   call cli%add(switch='--nsigma', help='Number of sigma step to do', def='10')
 
   call cli%get(switch='--min-mass', val=param_min_m)
