@@ -19,16 +19,12 @@ contains
 
     real(kind=8), intent(out), dimension(3, 3) :: I_t
 
-    real(kind=8), dimension(3) :: I_t_diag, tau
-    real(kind=8), dimension(2) :: E
-    real(kind=8), dimension(max(1, opt_lwork)) :: work
-
     real(kind=8), dimension(size(pos, 1)) :: tmp_mean
     real(kind=8), dimension(size(pos, 1), size(pos, 2)) :: corr_pos
     real(kind=8) :: mtot, tmp
 
-    integer :: i, j, k, info
-    integer :: ndim, nparts, dim, part
+    integer :: i, j
+    integer :: ndim, nparts
 
     ndim = size(pos, 1)
     nparts = size(pos, 2)
