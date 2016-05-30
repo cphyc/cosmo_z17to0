@@ -2,8 +2,8 @@
 modes		=dist dist-no-parallel debug
 
 [common-variables]
-$cflags		=-c -i4 -r8 -gen-interfaces -warn interfaces -std15 -lfftw3 -L/softs/fftw/3.3.4-pureintel/lib -I/softs/fftw/3.3.4-pureintel/include -check bounds -check pointers -traceback
-$lflags		=-std15 -fPIC -lfftw3 -L/softs/fftw/3.3.4-pureintel/lib
+$cflags		=-c -i4 -r8 -gen-interfaces -warn interfaces -std15 -lfftw3  -check bounds -check pointers -traceback -I/softs/intel/compilers_and_libraries_2016.3.210/linux/mkl/include  -I/softs/fftw/3.3.4-pureintel/include -Itools/extrema/include -mkl -I/softs/intel/compilers_and_libraries_2016.3.210/linux/mkl/include -L/softs/fftw/3.3.4-pureintel/lib -mkl
+$lflags		=-L/softs/fftw/3.3.4-pureintel/lib -std15 -fPIC -lfftw3 -mkl
 
 [template-dir]
 mod_dir		=./mod/
