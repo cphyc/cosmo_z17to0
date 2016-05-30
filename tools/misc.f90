@@ -589,6 +589,19 @@ contains
 
   end subroutine fill
 
+  !> Filter the region around center, with size width
+  !! inputs:
+  !! -----------
+  !!   - center: the center, in ramses units
+  !!   - width: the width, in ramses units
+  !!   - idsins: the ids of the particles
+  !!   - in : the position of the particles
+  !!   - order, optional: the order of the ids
+  !! outputs:
+  !! --------
+  !!   - idsout: the ids of the particles found
+  !!   - out: the position of the particles
+  !!   - parts_in_region: number of particles in the region
   subroutine filter_region(center, width, idsin, in, idsout, out, parts_in_region, &
        order)
     real(dp), dimension(3), intent(in)                         :: center, width
