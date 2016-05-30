@@ -72,7 +72,8 @@ program compute_halo_prop
   !----------------------------------------
   real(dp), allocatable :: gaussian(:, :, :), conv_dens(:, :, :), edges(:, :)
   real(dp) :: sigma, param_around
-  integer  :: param_nbin, param_nsigma, param_sigma_min, param_sigma_max, isigma
+  integer  :: param_nbin, param_nsigma, isigma
+  real     :: param_sigma_min, param_sigma_max
   !----------------------------------------
   ! Peaks
   !----------------------------------------
@@ -339,8 +340,8 @@ program compute_halo_prop
            !----------------------------------------
            allocate(extrema(param_nbin**3))
            do isigma = 1, param_nsigma
-              sigma = (param_sigma_max - param_sigma_min) * (isigma - 1) &
-                   / (param_nsigma - 1) + param_sigma_min
+              sigma = (param_sigma_max - param_sigma_min) * (isigma - 1.) &
+                   / (param_nsigma - 1.) + param_sigma_min
 
               if (param_verbosity >= 4) then
                  write(*, '(i7,a,ES10.3e2,a,i3,a,i3,a)')&
@@ -368,7 +369,7 @@ program compute_halo_prop
                    nn=(/param_nbin, param_nbin, param_nbin/), &
                    nd=3, &
                    ext=extrema, &
-                   cnd_cntrl=extrema_ctrl)
+                   ctrl=extrema_ctrl)
 
               ! save output
               do i = 1, param_nbin**3

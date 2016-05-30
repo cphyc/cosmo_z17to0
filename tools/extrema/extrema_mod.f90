@@ -26,24 +26,23 @@ MODULE extrema_mod
      INTEGER(I4B)      :: xyz(3)
   END TYPE NEIGH_DATA
 
-  INTEGER(I8B)                              :: JITTER=0
-  REAL(DP),     allocatable, dimension(:, :) :: CNA, AtCNA
-
   PUBLIC  :: FIND_EXTREMA
 
 CONTAINS
 
   subroutine FIND_EXTREMA(dt, nn, nd, ext, ctrl)
 
-    real(SP),             intent(in), dimension(0:)  :: dt
+    real(SP),             intent(in), dimension(0:) :: dt
     integer(I4B),         intent(in)                :: nd, nn(:)
     type(EXT_DATA),       intent(inout), optional   :: ext(:)
-    type(CND_CNTRL_TYPE), intent(inout), optional   :: ctrl
+    type(CND_CNTRL_TYPE), intent(in), optional      :: ctrl
 
     integer(I8B)            :: ic, n_ext, n_ext_low, n_ext_up
     integer(I4B)            :: nneigh, nparam
     type(NEIGH_DATA)        :: neighbour_list(3**nd-1)
     type(EXT_DATA)          :: extc
+    type(EXT_META)          :: extmeta
+
     logical                 :: ifextremum, ifjustprint
     real(SP)                :: dtc
     real(DP)                :: bfit(nd*(nd+3)/2)
@@ -56,9 +55,10 @@ CONTAINS
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Data read-in and setup
 
     NPIX = product(int(nn(1:nd), I8B))
-    if (allocated(ctrl%l_map)) deallocate(ctrl%l_map)
-    allocate( ctrl%l_map(0:NPIX-1) )     ! Allocate index map
-    ctrl%l_map = 0
+
+    if (allocated(extmeta%l_map)) deallocate(extmeta%l_map)
+    allocate(extmeta%l_map(0:NPIX-1))     ! Allocate index map
+    extmeta%l_map = 0
 
 
     if ( PRESENT(ext) ) then
@@ -82,7 +82,7 @@ CONTAINS
     nparam = nd*(nd+3)/2
 
     call preset_neighbours(nd, neighbour_list, nneigh)
-    call set_basis(nd, neighbour_list, nneigh, nparam)
+    call set_basis(nd, neighbour_list, nneigh, nparam, extmeta)
 
     if ( PRESENT(ctrl) ) then
        NPROC       = ctrl%nproc
@@ -103,20 +103,20 @@ CONTAINS
 
        call set_current_neighbours(dt, ic, nn, nd, neighbour_list, nneigh)
        ! fit quadratic to the neightbours
-       call quadratic_fit(neighbour_list, nneigh, nparam, bfit)
+       call quadratic_fit(neighbour_list, nneigh, nparam, bfit, extmeta)
        call setmatrix(bfit, am, vm, nd)
        call findextremum(am, vm, xm, nd)
-       ifextremum=checkextremum(xm, ic, nn, nd, neighbour_list, nneigh)
+       ifextremum=checkextremum(xm, ic, nn, nd, neighbour_list, nneigh, extmeta)
        if ( ifextremum ) then               ! do postprocessing
           dtc = dt(ic)
           call setmatrix(bfit, am, vm, nd)
           call extremum_properties(ic, dtc, nn, nd, am, vm, xm, extc)
-          call markextremum(ic, neighbour_list, nneigh, extc%typ)
+          call markextremum(ic, neighbour_list, nneigh, extc%typ, extmeta)
           if ( ifjustprint ) then
              ! write(*, '(3(f7.2,1x),4(e10.3,1x),i1)') extc%pos, extc%eig, extc%val, extc%typ
           else
              if ( n_ext >= NCHUNKE ) then
-                write(0, *), 'Run out of output storage', n_ext, NCHUNKE, n_ext_low, n_ext_up, 'exiting'
+                write(0, *) 'Run out of output storage', n_ext, NCHUNKE, n_ext_low, n_ext_up, 'exiting'
                 stop_now = .true.
              endif
              ext(n_ext_low + OMP_GET_THREAD_NUM()*NCHUNKE + n_ext) = extc
@@ -127,7 +127,7 @@ CONTAINS
     !$OMP END DO
     !$OMP END PARALLEL
 
-    DEALLOCATE(ctrl%l_map)
+    DEALLOCATE(extmeta%l_map)
     return
   END SUBROUTINE FIND_EXTREMA
 
@@ -150,9 +150,10 @@ CONTAINS
     return
   END SUBROUTINE preset_neighbours
 
-  SUBROUTINE set_basis(nd, neighbour_list, nneigh, nparam)
+  subroutine set_basis(nd, neighbour_list, nneigh, nparam, extmeta)
     integer(I4B), intent(in)      :: nd, nneigh, nparam
-    TYPE(NEIGH_DATA), intent(in)  :: neighbour_list(:)
+    type(NEIGH_DATA), intent(in)  :: neighbour_list(:)
+    type(EXT_META), intent(inout) :: extmeta
 
 
     REAL(DP),  dimension(nneigh, nparam)  :: AA
@@ -160,10 +161,10 @@ CONTAINS
 
     integer(I4B)                         :: i, j, ic
 
-    if (allocated(CNA)) deallocate(CNA)
-    if (allocated(AtCNA)) deallocate(AtCNA)
-    allocate(CNA(nneigh, nparam))
-    allocate(AtCNA(nparam, nparam))
+    if (allocated(extmeta%CNA)) deallocate(extmeta%CNA)
+    if (allocated(extmeta%AtCNA)) deallocate(extmeta%AtCNA)
+    allocate(extmeta%CNA(nneigh, nparam))
+    allocate(extmeta%AtCNA(nparam, nparam))
 
     ! Set basis
     do i = 1, nd
@@ -184,8 +185,10 @@ CONTAINS
     forall(i=1:nneigh) CNpp(i, i) = 1.d0/SUM(neighbour_list(i)%xyz(1:nd)**2)
     !    forall(i=1:nneigh) CNpp(i, i) = 1.d0
 
-    call DSYMM('L', 'L', nneigh, nparam, 1.d0, CNpp, nneigh, AA, nneigh, 0.d0, CNA, nneigh)
-    call DGEMM('T', 'N', nparam, nparam, nneigh, 1.d0, AA, nneigh, CNA, nneigh, 0.d0, AtCNA, nparam)
+    call DSYMM('L', 'L', nneigh, nparam, 1.d0, CNpp, nneigh, AA, nneigh, 0.d0, &
+         extmeta%CNA, nneigh)
+    call DGEMM('T', 'N', nparam, nparam, nneigh, 1.d0, AA, nneigh, extmeta%CNA, nneigh, 0.d0,&
+         extmeta%AtCNA, nparam)
     return
   END SUBROUTINE set_basis
 
@@ -293,10 +296,11 @@ CONTAINS
     return
   END FUNCTION index_to_grid
 
-  SUBROUTINE quadratic_fit(neighbour_list, nneigh, nparam, bfit)
+  subroutine quadratic_fit(neighbour_list, nneigh, nparam, bfit, extmeta)
     INTEGER(I4B),     intent(in)  :: nneigh, nparam
     TYPE(NEIGH_DATA), intent(in)  :: neighbour_list(:)
     real(DP),         intent(out) :: bfit(:)
+    type(EXT_META), intent(inout) :: extmeta
 
     INTEGER(I4B)                               :: i, INFO
     REAL(DP), DIMENSION(40)                    :: WORK
@@ -304,9 +308,10 @@ CONTAINS
     REAL(DP), DIMENSION(nparam, nparam)         :: AtCNA_loc
 
 
-    AtCNA_loc = AtCNA
+    AtCNA_loc = extmeta%AtCNA
 
-    call DGEMV('T', nneigh, nparam, 1._dp, CNA, nneigh, neighbour_list(:)%val, 1, 0._dp, bfit, 1)
+    call DGEMV('T', nneigh, nparam, 1._dp, extmeta%CNA, nneigh, neighbour_list(:)%val,&
+         1, 0._dp, bfit, 1)
     call DSYSV('L', nparam, 1, AtCNA_loc, nparam, IPIV, bfit, nparam, WORK, 40, INFO)
 
     return
@@ -329,17 +334,17 @@ CONTAINS
   END SUBROUTINE findextremum
 
 
-  logical function checkextremum(x, icell, nn, nd, neighbour_list, nneigh, ctrl)
+  logical function checkextremum(x, icell, nn, nd, neighbour_list, nneigh, extmeta)
     REAL(DP),     intent(in), dimension(:)     :: x
     INTEGER(I8B), intent(in)                   :: icell
     INTEGER(I4B), intent(in)                   :: nn(:), nd, nneigh
     type(NEIGH_DATA), intent(in)               :: neighbour_list(:)
-    type(CND_CNTRL_TYPE), intent(inout), optional :: ctrl
+    type(EXT_META), intent(inout) :: extmeta
 
     INTEGER(I8B)                           :: ic
     INTEGER(I4B)                           :: i
 
-    if ( ctrl%l_map(icell) > 0 ) then
+    if (extmeta%l_map(icell) > 0) then
        checkextremum = .false.
        return
     endif
@@ -347,8 +352,6 @@ CONTAINS
     ! Find extrema coordinates on a grid, and the nearest grid point
     ic = grid_to_index(nint(fkvadr(x+index_to_grid(icell, nn, nd), nn)), nn, nd)
 
-    !    if (icell == 11100) write(0, *) ic, icell, nint(fkvadr(x+index_to_grid(icell, nn, nd), nn))
-    !    if (icell == 11100) write(0, *) neighbour_list(:)%pix
     if ( ic == icell ) then
        checkextremum = .true.
     else
@@ -357,11 +360,11 @@ CONTAINS
        do i = 1, nneigh
           if ( ic == neighbour_list(i)%pix ) then
              !             if (icell == 11100) write(0, *)'lmap', ic, l_map(ic), checkextremum
-             if ( ctrl%l_map(ic) == -icell-1 ) then
+             if ( extmeta%l_map(ic) == -icell-1 ) then
                 checkextremum = .true.
                 !                JITTER = JITTER + 1           ! just counter for info
              else
-                ctrl%l_map(icell) = -ic-1
+                extmeta%l_map(icell) = -ic-1
              endif
              exit
           endif
@@ -371,15 +374,16 @@ CONTAINS
 
   END FUNCTION checkextremum
 
-  SUBROUTINE markextremum(vert, neighbour_list, nneigh, typ)
+  subroutine markextremum(vert, neighbour_list, nneigh, typ, extmeta)
     INTEGER(I8B), intent(in)          :: vert
     INTEGER(I4B), intent(in)          :: nneigh, typ
     TYPE(NEIGH_DATA), intent(in)      :: neighbour_list(:)
-
+    type(EXT_META), intent(inout) :: extmeta
+    
     INTEGER(I4B)                           :: i
 
-    ctrl%l_map(vert) = typ
-    forall (i=1:nneigh) ctrl%l_map(neighbour_list(i)%pix) = typ
+    extmeta%l_map(vert) = typ
+    forall (i=1:nneigh) extmeta%l_map(neighbour_list(i)%pix) = typ
     return
 
   END SUBROUTINE markextremum
@@ -409,11 +413,11 @@ CONTAINS
   END SUBROUTINE extremum_properties
 
   SUBROUTINE setmatrix(a, am, vm, nd)
-    REAL(DP),  intent(in)    :: a(:)
-    REAL(DP),  intent(out)   :: am(nd, nd), vm(nd)
-    INTEGER(I4B), intent(in) :: nd
+    real(DP),  intent(in)    :: a(:)
+    integer(I4B), intent(in) :: nd
+    real(DP),  intent(out)   :: am(nd, nd), vm(nd)
 
-    INTEGER(I4B)             :: i, j, m
+    integer(I4B)             :: i, j, m
     do i=1, nd
        vm(i)=a(i)
        am(i, i)=a(nd+i)
