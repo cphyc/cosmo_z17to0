@@ -9,8 +9,18 @@ module extrema
   real(kind=8), allocatable, dimension(:)    :: mod_eigval
   integer, allocatable, dimension(:)         :: mod_peak_type, mod_index
 
-  integer :: NPEAKS, NBINS(3), NPROC = 1
+  integer :: MOD_NPEAKS, MOD_NBINS(3), MOD_NPROC = 1
+  private :: MOD_NPEAKS, MOD_NBINS, MOD_NPROC
 contains
+  !! Set the values
+  subroutine extrema_set(npeaks, nbins, nprocs)
+    integer, intent(in), optional :: npeaks, nbins, nprocs
+
+    if (present(npeaks)) MOD_NPEAKS=npeaks
+    if (present(nbins))  MOD_NBINS=NBINS
+    if (present(nrpcos)) MOD_NPROCS=nprocs
+  end subroutine extrema_set
+
   !! Call find_extrema from extrema/ files
   !! args:
   !!   - real(dp) field(N1, N2, N3) the field
@@ -20,21 +30,21 @@ contains
   !! Note: this routine can be parallelized (but extrema_compute cannot)
   subroutine extrema_compute_ext(field, ext)
     real(kind=8), intent(in)    :: field(:, :, :)
-    type(EXT_DATA), intent(out) :: ext(NPEAKS)
+    type(EXT_DATA), intent(out) :: ext(MOD_NPEAKS)
 
     type(CND_CNTRL_TYPE) :: ctrl
     real(kind=4)         :: flattened_field(size(field))
 
     ndim = 3
 
-    ctrl%NPROC     = NPROC
+    ctrl%MOD_NPROC = MOD_NPROC
     ctrl%justprint = .false.
 
     ! flatten the field
     flattened_field = reshape(real(field), (/size(field)/))
 
     ! get the extrema
-    call find_extrema(flattened_field, nn=NBINS, ext=ext, nd=3, cnd_cntrl=ctrl)
+    call find_extrema(flattened_field, nn=MOD_NBINS, ext=ext, nd=3, cnd_cntrl=ctrl)
 
   end subroutine extrema_compute_ext
 
@@ -54,7 +64,7 @@ contains
 
     integer, intent(out) :: ndim, npeak
 
-    type(EXT_DATA)       :: ext(NPEAKS)
+    type(EXT_DATA)       :: ext(MOD_NPEAKS)
 
     ! get the extrema
     call extrema_compute_ext(field, ext)
@@ -68,7 +78,7 @@ contains
 
     !TODO: remove parallel foobars
     npeak = 0
-    do i = 1, NPEAKS
+    do i = 1, MOD_NPEAKS
        if (ext(i)%typ >= 0) then
           npeak = npeak + 1
        end if
@@ -76,7 +86,7 @@ contains
 
     allocate(mod_peaks(3, npeak), mod_eigvect(3, npeak), &
          mod_eigval(npeak), mod_peak_type(npeak), mod_index(npeak))
-    do i = 1, NPEAKS
+    do i = 1, MOD_NPEAKS
        if (ext(i)%typ >= 0) then
           mod_peaks(:, i)   = ext(i)%pos
           mod_eigvect(:, i) = ext(i)%eig
@@ -165,10 +175,10 @@ contains
     real(kind=8) :: sigma
     integer  :: ndim, npeak
 
-    NPEAKS = nbin ** 3
-    NBINS = (/nbin, nbin, nbin/)
+    MOD_NPEAKS = nbin ** 3
+    MOD_NBINS = (/nbin, nbin, nbin/)
 
-    allocate(extrema(NPEAKS, nsigmastep))
+    allocate(extrema(MOD_NPEAKS, nsigmastep))
 
     ! estimate density
     call conv_density(positions, nbin, density, edges)
