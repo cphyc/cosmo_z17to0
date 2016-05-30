@@ -619,7 +619,7 @@ contains
 
     iout = 0
     ! loop over each positions in in_arr
-    do i = 1, size(in, 2)
+    do i = 1, size(idsin, 1)
        ok = .true.
        dist = in(:, i) - center
 
