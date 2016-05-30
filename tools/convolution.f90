@@ -108,6 +108,9 @@ contains
     real(kind=8), intent(in)  :: A(:,:,:)
     class(CONV_T), intent(inout) :: self
 
+    if (allocated(self%A)) deallocate(self%A)
+    if (allocated(self%dftA)) deallocate(self%dftA)
+
     allocate(self%A(size(A, 1), size(A, 2), size(A, 3)))
     allocate(self%dftA(size(A, 1), size(A, 2), size(A, 3)))
     self%A = A
@@ -119,6 +122,9 @@ contains
   subroutine conv_init_B (self, B)
     real(kind=8), intent(in)      :: B(:,:,:)
     class(CONV_T), intent(inout) :: self
+
+    if (allocated(self%B)) deallocate(self%B)
+    if (allocated(self%dftB)) deallocate(self%dftB)
 
     allocate(self%B(size(B, 1), size(B, 2), size(B, 3)))
     allocate(self%dftB(size(B, 1), size(B, 2), size(B, 3)))
@@ -135,6 +141,9 @@ contains
     L = size(self%dftA, 1)
     M = size(self%dftA, 2)
     N = size(self%dftA, 3)
+
+    if (allocated(self%conv)) deallocate(self%conv)
+    if (allocated(self%dftConv)) deallocate(self%dftConv)
 
     allocate(self%dftConv(L, M, N))
     allocate(self%conv(L, M, N))
@@ -235,7 +244,7 @@ contains
 
     real(kind=8), dimension(3) :: maxis, minis, spans
 
-    integer :: i, j, k, part_i, ndim, nparts, i0, j0, k0, imax, jmax, kmax, imin, jmin, kmin, dim
+    integer :: i, j, k, part_i, ndim, nparts, i0, j0, k0, imax, jmax, kmax, imin, jmin, kmin
     real(kind=8) :: ri, rj, rk
 
     ! get the dimensions
@@ -292,12 +301,12 @@ contains
 
   subroutine conv_free(self)
     class(CONV_T), intent(inout) :: self
-    if (allocated(self%A)) deallocate(self%A)
-    if (allocated(self%B)) deallocate(self%B)
+    if (allocated(self%A))    deallocate(self%A)
+    if (allocated(self%B))    deallocate(self%B)
     if (allocated(self%conv)) deallocate(self%conv)
 
-    if (allocated(self%dftA)) deallocate(self%dftA)
-    if (allocated(self%dftB)) deallocate(self%dftB)
+    if (allocated(self%dftA))    deallocate(self%dftA)
+    if (allocated(self%dftB))    deallocate(self%dftB)
     if (allocated(self%dftConv)) deallocate(self%dftConv)
 
   end subroutine conv_free
