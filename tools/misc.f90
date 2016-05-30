@@ -591,13 +591,13 @@ contains
 
   subroutine filter_region(center, width, idsin, in, idsout, out, parts_in_region, &
        order)
-    real(dp), dimension(3), intent(in)    :: center, width
-    real(dp), dimension(:, :), intent(in) :: in
-    integer, dimension(:), intent(in) :: idsin
-    integer, dimension(:), intent(in), optional :: order ! if the idsin have been sorted
+    real(dp), dimension(3), intent(in)                         :: center, width
+    real(dp), dimension(:, :), intent(in)                      :: in
+    integer, dimension(:), intent(in)                          :: idsin
+    integer, dimension(:), intent(in), optional                :: order ! if the idsin have been sorted
     real(dp), dimension(size(in, 1), size(in, 2)), intent(out) :: out
-    integer, intent(out), optional :: parts_in_region
-    integer, dimension(:), intent(out) :: idsout
+    integer, intent(out), optional                             :: parts_in_region
+    integer, dimension(:), intent(out)                         :: idsout
 
     integer :: i, dim, iout
 
