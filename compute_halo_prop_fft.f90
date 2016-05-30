@@ -5,13 +5,15 @@ program compute_halo_prop
   use flap, only : command_line_interface
   use compute
   use convolution
+  use extrema_mod
+  use extrema_types, only : EXT_DATA, CND_CNTRL_TYPE
   implicit none
 
   !-------------------------------------
   ! Parameters
   !-------------------------------------
   character(len=200) :: param_output_path
-  integer            :: param_output_number
+  integer            :: param_output_number, unit_output
   integer, parameter :: NPARTICLE_TO_PROBE_HALO = 50, NCPU_PER_HALO = 10
   real(dp)           :: param_min_m, param_max_m
   integer            :: param_verbosity
@@ -44,15 +46,16 @@ program compute_halo_prop
   ! Halo properties
   !-------------------------------------
   real(dp), dimension(:,:,:), allocatable    :: density
+  real(sp), dimension(:), allocatable        :: flattened_field
   real(dp), dimension(:), allocatable        :: m_in_halo, m_in_box
   real(dp), dimension(:, :), allocatable     :: pos_in_halo,&
-       & pos_around_halo, grid
+       & pos_around_halo
   integer, dimension(:), allocatable         :: ids_in_box, ids_around_halo
   real(dp), dimension(:, :), allocatable     :: pos_in_box
   real(dp)                                   :: mtot
   real(dp), dimension(3)                     :: pos_mean, pos_std
   integer                                    :: halo_i, halo_counter, part_i
-  integer                                    :: part_counter, parts_in_region, local_part_counter
+  integer                                    :: part_counter, parts_in_region
   logical, dimension(:), allocatable         :: halo_found_mask
   type(CONV_T)                               :: conv
   !-------------------------------------
@@ -61,7 +64,6 @@ program compute_halo_prop
   integer                                    :: i, counter, cpu_i, x, y, z, dim
   integer                                    :: tmp_int, index, tmp_int2
   character(len=200)                         :: tmp_char
-  real(dp), allocatable, dimension(:,:)      :: tmp_dblarr
   real(dp), dimension(3)                     :: X0, X1
   real(dp)                                   :: margin
   integer                                    :: param_nstep, max_nparts, step_i
@@ -71,7 +73,13 @@ program compute_halo_prop
   !----------------------------------------
   real(dp), allocatable :: gaussian(:, :, :), conv_dens(:, :, :), edges(:, :)
   real(dp) :: sigma
-  integer :: param_nbin
+  integer  :: param_nbin, param_nsigma, param_sigma_min, param_sigma_max, isigma
+  !----------------------------------------
+  ! Peaks
+  !----------------------------------------
+  type(EXT_DATA), allocatable, dimension(:) :: extrema
+  type(CND_CNTRL_TYPE)                      :: extrema_ctrl
+
 
 
   !-------------------------------------
@@ -104,6 +112,9 @@ program compute_halo_prop
   call cli%add(switch='--output-path', help='Path of the simulation output',&
        act='store', def='/data52/Horizon-AGN/OUTPUT_DIR')
   call cli%add(switch='--verbose', help='Verbosity', act='store', def='0')
+  call cli%add(switch='--sigma-min', help='Minimum sigma in kpc')
+  call cli%add(switch='--sigma-max', help='Maximum sigma in kpc')
+  call cli%add(switch='--nsigma', help='Number of sigma step to do', def='10')
 
   call cli%get(switch='--min-mass', val=param_min_m)
   call cli%get(switch='--max-mass', val=param_max_m)
@@ -113,6 +124,9 @@ program compute_halo_prop
   call cli%get(switch='--margin', val=margin)
   call cli%get(switch='--nstep', val=param_nstep)
   call cli%get(switch='--nbin', val=param_nbin)
+  call cli%get(switch='--sigma-min', val=param_sigma_min)
+  call cli%get(switch='--sigma-min', val=param_sigma_max)
+  call cli%get(switch='--nsigma', val=param_nsigma)
 
   !-------------------------------------
   ! Read brick file
@@ -143,9 +157,11 @@ program compute_halo_prop
   call cli%get(switch='--output', val=tmp_char)
   print*, ''
   print*, 'Writing output in ', trim(tmp_char)
-  open(unit=10, file=trim(tmp_char))
-  open(unit=123, file='missing_parts')
-  write(10, '(a9, 20a13)') 'id', 'mass', 'x', 'y', 'z', 'xx', 'xy', 'xz', 'yy', 'yz', 'zz'
+  open(newunit=unit_output, file=trim(tmp_char))
+  write(unit_output, '(a7, a5, a13, 3a4, 7a14)' ) &
+       'halo_i', 'type', 'sigma', 'xpixel', 'ypixel', 'zpixel', &
+       'x', 'y', 'z', 'ex', 'ey', 'ez', 'eigval'
+
   halo_counter = 1
 
   max_nparts = 2**30
@@ -156,7 +172,8 @@ program compute_halo_prop
   !----------------------------------------
   allocate(gaussian(param_nbin, param_nbin, param_nbin), &
        conv_dens(param_nbin, param_nbin, param_nbin), &
-       density(param_nbin, param_nbin, param_nbin))
+       density(param_nbin, param_nbin, param_nbin), &
+       flattened_field(param_nbin**3))
   allocate(edges(infos%ndim, param_nbin+1))
   allocate (halo_found_mask(nDM))
   halo_found_mask = .false.
@@ -200,7 +217,8 @@ program compute_halo_prop
            !$OMP SHARED(param_output_number, part_counter, X0, X1, pos_in_box) &
            !$OMP SHARED(m_in_box, ids_in_box, infos, param_verbosity, tmp_int2)&
            !$OMP PRIVATE(nstar, pos, vel, m, ids, birth_date, ndim, nparts, i) &
-           !$OMP PRIVATE(tmp_int, local_part_counter)                          &
+           !$OMP PRIVATE(tmp_int)                                              &
+           !$OMP FIRSTPRIVATE(unit_output)                                     &
            !$OMP SCHEDULE(guided, 1)
            do cpu_i = 1, infos%ncpu
               if (cpu_list(cpu_i) == 0) then
@@ -208,7 +226,7 @@ program compute_halo_prop
               end if
 
               !$OMP ATOMIC
-              tmp_int2 = tmp_int2 + 1
+              tmp_int2 = tmp_int2 + 1 ! only a passive counter
 
               call read_particle(param_output_path, param_output_number, cpu_list(cpu_i), &
                    nstar, pos, vel, m, ids, birth_date, ndim, nparts)
@@ -218,7 +236,6 @@ program compute_halo_prop
                       'Reading cpu', tmp_int2, '/', infos%ncpu, ' (cpu=', cpu_list(cpu_i), &
                       ', nparts=', nparts, ', loaded=', part_counter,')'
               end if
-              !$OMP CRITICAL
               do i = 1, nparts
                  if ( pos(1, i) >= X0(1) .and. pos(1, i) < X1(1) .and. &
                       pos(2, i) >= X0(2) .and. pos(2, i) < X1(2) .and. &
@@ -226,14 +243,13 @@ program compute_halo_prop
                       ids(i) > 0 & ! only keep DM particles
                       ) then
 
+                    !$OMP ATOMIC
                     part_counter = part_counter + 1
                     pos_in_box(:, part_counter) = pos(:, i)
                     m_in_box(part_counter)      = m(i)
                     ids_in_box(part_counter)    = ids(i)
                  end if
               end do
-              !$OMP END CRITICAL
-
            end do
            !$OMP END PARALLEL DO
 
@@ -247,13 +263,15 @@ program compute_halo_prop
            ! Once the particle read, for all complete halos
            ! compute the properties
            !-------------------------------------
-           !$OMP PARALLEL DO DEFAULT(none) &
-           !$OMP SHARED(mDM, param_min_m, param_max_m, X0, X1, posDM, halo_found_mask) &
+           !$OMP PARALLEL DO DEFAULT(none)                                              &
+           !$OMP SHARED(mDM, param_min_m, param_max_m, X0, X1, posDM, halo_found_mask)  &
            !$OMP SHARED(infos, param_nbin, ids_in_box, members, part_counter, m_in_box) &
-           !$OMP SHARED(nDM, max_nparts, pos_in_box, param_verbosity, order) &
-           !$OMP PRIVATE(pos_in_halo, m_in_halo, pos_around_halo, ids_around_halo) &
-           !$OMP PRIVATE(mtot, tmp_dblarr, parts_in_region, grid, edges, conv, conv_dens) &
-           !$OMP PRIVATE(sigma, density, gaussian, index, pos_mean, pos_std, counter) &
+           !$OMP SHARED(nDM, max_nparts, pos_in_box, param_verbosity, order)            &
+           !$OMP SHARED(param_nsigma, param_sigma_max, param_sigma_min, unit_output)    &
+           !$OMP PRIVATE(pos_in_halo, m_in_halo, pos_around_halo, ids_around_halo)      &
+           !$OMP PRIVATE(mtot, parts_in_region, edges, conv, conv_dens)                 &
+           !$OMP PRIVATE(sigma, density, gaussian, index, pos_mean, pos_std, counter)   &
+           !$OMP PRIVATE(flattened_field, extrema_ctrl, extrema)                        &
            !$OMP SCHEDULE(guided, 1)
            do halo_i = 1, nDM
               ! filter halos outside mass range and not in box
@@ -264,13 +282,12 @@ program compute_halo_prop
                    (.not. halo_found_mask(halo_i)) ) then
 
                  ! allocate data for the halo
-                 allocate(&
-                      pos_in_halo(infos%ndim, members(halo_i)%parts), &
-                      m_in_halo(members(halo_i)%parts),&
-                      pos_around_halo(infos%ndim, max_nparts),&
-                      ids_around_halo(max_nparts))
+                 allocate(pos_in_halo(infos%ndim, members(halo_i)%parts))
+                 allocate(m_in_halo(members(halo_i)%parts))
+                 allocate(pos_around_halo(infos%ndim, max_nparts))
+                 allocate(ids_around_halo(max_nparts))
 
-                 ! count the number of particles in the region that are in the halo
+                 ! get the particles in the region around the halo
                  counter = 0
                  do part_i = 1, members(halo_i)%parts
                     index = indexOf(members(halo_i)%ids(part_i), ids_in_box(1:part_counter))
@@ -287,11 +304,12 @@ program compute_halo_prop
                     if (param_verbosity >= 2) then
                        print*, halo_i, 'is complete'
                     end if
+
                     !$OMP CRITICAL
                     halo_found_mask(halo_i) = .true.
                     !$OMP END CRITICAL
 
-                    ! correct the positions and compute data about it
+                    ! correct the positions and get center + stddev
                     call correct_positions(pos_in_halo)
                     call compute_mean(pos_in_halo, pos_mean)
                     do dim = 1, infos%ndim
@@ -300,11 +318,12 @@ program compute_halo_prop
                     end do
 
                     mtot = sum(m_in_halo)
-                    allocate(tmp_dblarr(3, 3))
 
                     !----------------------------------------
                     ! Get particles in neighboorhood
                     !----------------------------------------
+                    if (param_verbosity >= 4) write(*, *) halo_i, ': filtering'
+
                     call filter_region(center=pos_mean, width=pos_std,&
                          idsin=  ids_in_box,      in=  pos_in_box, &
                          idsout= ids_around_halo, out= pos_around_halo, &
@@ -313,28 +332,66 @@ program compute_halo_prop
                     !-------------------------------------
                     ! Estimate density
                     !-------------------------------------
-                    allocate(grid(infos%ndim, 100))
+                    if (param_verbosity >= 4) write(*, *) halo_i, ': density estimation'
                     call conv_density(data=pos_around_halo(:, :parts_in_region),&
                          nbin=param_nbin, dens=density, edges=edges)
 
                     !----------------------------------------
                     ! Compute the FFT
                     !----------------------------------------
+                    if (param_verbosity >= 4) write(*, *) halo_i, ': fft of density'
                     call conv%init_A(density)
 
-                    ! TODO: loop over sigmas
-                    ! TODO: convert sizes into sigmas
-                    sigma = 1
-                    call kernel_gaussian3d(param_nbin, sigma, gaussian)
-                    call conv%init_B(gaussian)
-                    call conv%execute()
+                    !----------------------------------------
+                    ! Iterate over sigma
+                    !----------------------------------------
+                    allocate(extrema(param_nbin**3))
+                    do isigma = 1, param_nsigma
+                       sigma = (param_sigma_max - param_sigma_min) * (isigma - 1) &
+                            / (param_nsigma - 1) + param_sigma_min
 
-                    ! copy back the convolution data
-                    conv_dens = conv%conv
+                       if (param_verbosity >= 4) then
+                          write(*, '(i7,a,i3,a,i3,a)')&
+                               halo_i, ': fft of gaussian kernel (', &
+                               isigma, '/', param_nsigma, ')'
+                       end if
+                       call kernel_gaussian3d(param_nbin, sigma, gaussian)
+                       call conv%init_B(gaussian)
+
+                       if (param_verbosity >= 4) then
+                          write(*, '(i7,a,i3,a,i3,a)')&
+                               halo_i, ': convolution (', &
+                               isigma, '/', param_nsigma, ')'
+                       end if
+
+                       call conv%execute()
+
+                       ! compute and get the extrema
+                       extrema_ctrl%nproc = 1
+                       extrema_ctrl%justprint = .false.
+
+                       flattened_field = reshape(real(conv%conv), (/ size(conv%conv) /))
+                       call find_extrema(&
+                            dt=flattened_field, &
+                            nn=(/param_nbin, param_nbin, param_nbin/), &
+                            nd=3, &
+                            ext=extrema, &
+                            cnd_cntrl=extrema_ctrl)
+
+                       ! save output
+                       do i = 1, param_nbin**3
+                          if (extrema(i)%typ > 0) then
+                             write(unit_output, '(i7, i5, ES14.6e2, 3i4, 7ES14.6e2)' )&
+                                  halo_i, extrema(i)%typ, sigma, extrema(i)%pix, &
+                                  extrema(i)%pos, extrema(i)%eig, extrema(i)%val
+                          end if
+                       end do
+
+                    end do
+                    ! free memory
+                    if (param_verbosity >= 4) write(*, *) halo_i, ': free'
                     call conv%free()
-
-                    deallocate(grid, density)
-
+                    deallocate(extrema)
                  else
                     if (param_verbosity >= 3) then
                        write(*, '(a,i10,a,i10,a,i10,a)') 'halo n°', halo_i, ' is incomplete: ', &
@@ -343,6 +400,7 @@ program compute_halo_prop
                  end if
                  deallocate(pos_in_halo, m_in_halo)
                  deallocate(pos_around_halo)
+                 deallocate(ids_around_halo)
               end if
            end do
 
@@ -352,8 +410,7 @@ program compute_halo_prop
      end do
   end do
 
-  close(10)
-  close(123)
+  close(unit_output)
 
 contains
   subroutine compute_mean(pos, mean)
