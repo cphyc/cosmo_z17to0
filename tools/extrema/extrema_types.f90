@@ -1,4 +1,4 @@
-MODULE extrema_types
+  >MODULE extrema_types
   ! This module sets the types used in the Fortran 90 modules
   ! follows the example of Healpix and Numerical Recipes
   !
@@ -40,10 +40,12 @@ MODULE extrema_types
 
   ! Control structure
   TYPE CND_CNTRL_TYPE
-       INTEGER      :: STAT=0,  EXACT=1
-       INTEGER      :: NPROC=1
-       LOGICAL      :: justprint=.false.
-       LOGICAL      :: normalize=.true.
+     integer      :: STAT=0,  EXACT=1
+     integer      :: NPROC=1
+     logical      :: justprint=.false.
+     logical      :: normalize=.true.
+     integer(I8B), allocatable, dimension(:)   :: l_map
+     real(DP),     allocatable, dimension(:,:) :: CNA, AtCNA
   END TYPE CND_CNTRL_TYPE
 
 
@@ -54,11 +56,11 @@ MODULE extrema_types
 
   ! Output container for extrema
   TYPE EXT_DATA
-       INTEGER(I8B) :: pix
-       REAL(DP)     :: pos(3)
-       REAL(DP)     :: eig(3)
-       REAL(DP)     :: val
-       INTEGER(I4B) :: typ
+     INTEGER(I8B) :: pix
+     REAL(DP)     :: pos(3)
+     REAL(DP)     :: eig(3)
+     REAL(DP)     :: val
+     INTEGER(I4B) :: typ
   END TYPE EXT_DATA
 
   TYPE(inputformats), public  :: inputforms
