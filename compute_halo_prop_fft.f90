@@ -7,6 +7,7 @@ program compute_halo_prop
   use convolution
   use extrema_mod
   use extrema_types, only : EXT_DATA, CND_CNTRL_TYPE
+  use mod_sort
   implicit none
 
   !-------------------------------------
@@ -53,7 +54,7 @@ program compute_halo_prop
   integer, dimension(:), allocatable         :: ids_in_box, ids_around_halo
   real(dp), dimension(:, :), allocatable     :: pos_in_box
   real(dp)                                   :: mtot
-  real(dp), dimension(3)                     :: pos_mean, pos_std
+  real(dp), dimension(3)                     :: width, pos_mean
   integer                                    :: halo_i, halo_counter, part_i
   integer                                    :: part_counter, parts_in_region
   logical, dimension(:), allocatable         :: halo_found_mask
@@ -157,9 +158,11 @@ program compute_halo_prop
   print*, ''
   print*, 'Writing output in ', trim(tmp_char)
   open(newunit=unit_output, file=trim(tmp_char))
-  write(unit_output, '(a7, a5, a14, 3a8, 7a14)' ) &
-       'halo_i', 'type', 'sigma', 'xpixel', 'ypixel', 'zpixel', &
-       'x', 'y', 'z', 'ex', 'ey', 'ez', 'eigval'
+  write(unit_output, '(a7, a7, a14, 3a8, *(a14))' ) &
+       'halo_i', 'type', 'sigma', 'pixel',&
+       'x', 'y', 'z', 'ex', 'ey', 'ez', 'eigval', &
+       'centerx', 'centery', 'centerz', 'minx', 'miny', 'minz', &
+       'maxx', 'maxy', 'maxz'
 
   halo_counter = 1
 
@@ -171,7 +174,6 @@ program compute_halo_prop
   !----------------------------------------
   allocate(gaussian(param_nbin, param_nbin, param_nbin), &
        conv_dens(param_nbin, param_nbin, param_nbin), &
-       density(param_nbin, param_nbin, param_nbin), &
        flattened_field(param_nbin**3))
   allocate(edges(infos%ndim, param_nbin+1))
   allocate (halo_found_mask(nDM))
@@ -214,7 +216,7 @@ program compute_halo_prop
   !$OMP PRIVATE(tmp_int)                                              &
   !$OMP FIRSTPRIVATE(unit_output)                                     &
   !$OMP SCHEDULE(guided, 1)
-  do cpu_i = 1, 1000!infos%ncpu
+  do cpu_i = 1, 200!infos%ncpu
      if (cpu_list(cpu_i) == 0) then
         cycle
      end if
@@ -250,25 +252,18 @@ program compute_halo_prop
   allocate(order(part_counter))
   print*, 'Sorting array (len=', part_counter, ')…'
   ! Sort the ids
+  ! call parallel_sort(ids_in_box(1:part_counter), order(1:part_counter))
+  ! print*, '   … ordered, now sorting …'
+  ! ids_in_box(1:part_counter) = ids_in_box(order(1:part_counter))
   call quick_sort(ids_in_box(1:part_counter), order(1:part_counter))
-  print*, '   … sorted'
+  print*, '                          … sorted!'
 
   !-------------------------------------
   ! Once the particle read, for all complete halos
   ! compute the properties
   !-------------------------------------
-  !$OMP PARALLEL DO DEFAULT(none)                                              &
-  !$OMP SHARED(mDM, param_min_m, param_max_m, X0, X1, posDM, halo_found_mask)  &
-  !$OMP SHARED(infos, param_nbin, ids_in_box, members, part_counter, m_in_box) &
-  !$OMP SHARED(nDM, max_nparts, pos_in_box, param_verbosity, order)            &
-  !$OMP SHARED(param_nsigma, param_sigma_max, param_sigma_min, unit_output)    &
-  !$OMP SHARED(param_around)                                                   &
-  !$OMP PRIVATE(pos_in_halo, m_in_halo, pos_around_halo, ids_around_halo)      &
-  !$OMP PRIVATE(mtot, parts_in_region, edges, conv, conv_dens)                 &
-  !$OMP PRIVATE(sigma, density, gaussian, index, pos_mean, pos_std, counter)   &
-  !$OMP PRIVATE(flattened_field, extrema_ctrl, extrema)                        &
-  !$OMP SCHEDULE(guided, 5)
-  do halo_i = 1, nDM
+  do halo_i = 1, 10!nDM
+     print*, halo_i
      ! filter halos outside mass range and not in box
      if ( mDM(halo_i) > param_min_m .and. mDM(halo_i) < param_max_m .and. &
           (.not. halo_found_mask(halo_i)) ) then
@@ -278,6 +273,7 @@ program compute_halo_prop
         allocate(m_in_halo(members(halo_i)%parts))
         allocate(pos_around_halo(infos%ndim, max_nparts))
         allocate(ids_around_halo(max_nparts))
+        allocate(density(param_nbin, param_nbin, param_nbin))
 
         ! get the particles in the region around the halo
         counter = 0
@@ -312,8 +308,9 @@ program compute_halo_prop
            !----------------------------------------
            if (param_verbosity >= 4) write(*, *) halo_i, ': filtering'
 
+           width = (/param_around, param_around, param_around /)
            call filter_region(center=pos_mean, &
-                width=(/param_around, param_around, param_around/), &
+                width=  width, &
                 idsin=  ids_in_box(1:part_counter),  in=  pos_in_box(:,1:part_counter), &
                 idsout= ids_around_halo, out= pos_around_halo, &
                 parts_in_region= parts_in_region, order= order)
@@ -335,6 +332,17 @@ program compute_halo_prop
            ! Iterate over sigma
            !----------------------------------------
            allocate(extrema(param_nbin**3))
+
+           ! compute and get the extrema
+           extrema_ctrl%nproc = -1
+           extrema_ctrl%justprint = .false.
+
+           !$no-OMP PARALLEL DO DEFAULT(none)                                          &
+           !$no-OMP shared(param_nsigma, param_sigma_max, param_sigma_min, param_nbin) &
+           !$no-OMP shared(param_verbosity, halo_i, extrema_ctrl, edges, pos_mean)     &
+           !$no-OMP shared(unit_output)                                                &
+           !$no-OMP firstprivate(conv)                                                 &
+           !$no-OMP private(sigma, gaussian, flattened_field, extrema, i)
            do isigma = 0, param_nsigma - 1
               sigma = (param_sigma_max - param_sigma_min) * real(isigma, dp) &
                    / real(param_nsigma - 1, dp) + param_sigma_min
@@ -342,7 +350,7 @@ program compute_halo_prop
               if (param_verbosity >= 4) then
                  write(*, '(i7,a,ES10.3e2,a,i3,a,i3,a)')&
                       halo_i, ': fft of gaussian kernel (sigma=', sigma, ', ',&
-                      isigma, '/', param_nsigma, ')'
+                      1+isigma, '/', param_nsigma, ')'
               end if
               call kernel_gaussian3d(param_nbin, sigma, gaussian)
               call conv%init_B(gaussian)
@@ -350,16 +358,17 @@ program compute_halo_prop
               if (param_verbosity >= 4) then
                  write(*, '(i7,a,i3,a,i3,a)')&
                       halo_i, ': convolution (', &
-                      isigma, '/', param_nsigma, ')'
+                      1+isigma, '/', param_nsigma, ')'
               end if
 
               call conv%execute()
 
-              ! compute and get the extrema
-              extrema_ctrl%nproc = 1
-              extrema_ctrl%justprint = .false.
-
-              flattened_field = reshape(real(conv%conv), (/ size(conv%conv) /))
+              if (param_verbosity >= 4) then
+                 write(*, '(i7,a,i3,a,i3,a)')&
+                      halo_i, ': extrema (', &
+                      1+isigma, '/', param_nsigma, ')'
+              end if
+              flattened_field = reshape(real(conv%conv, 4), (/ size(conv%conv) /))
               call find_extrema(&
                    dt=flattened_field, &
                    nn=(/param_nbin, param_nbin, param_nbin/), &
@@ -368,14 +377,17 @@ program compute_halo_prop
                    ctrl=extrema_ctrl)
 
               ! save output
+              !$OMP CRITICAL
               do i = 1, param_nbin**3
                  if (extrema(i)%typ > 0) then
-                    write(unit_output, '(i7, i5, ES14.6e2, 3i8, 7ES14.6e2)' )&
+                    write(unit_output, '(i7, i7, ES14.6e2, i8, *(ES14.6e2))' )&
                          halo_i, extrema(i)%typ, sigma, extrema(i)%pix, &
-                         extrema(i)%pos, extrema(i)%eig, extrema(i)%val
+                         extrema(i)%pos, extrema(i)%eig, extrema(i)%val, &
+                         pos_mean(1), pos_mean(2), pos_mean(3), &
+                         edges(:, 1), edges(:, param_nbin+1)
                  end if
               end do
-
+              !$OMP END CRITICAL
            end do
            ! free memory
            if (param_verbosity >= 4) write(*, *) halo_i, ': free'
@@ -390,6 +402,7 @@ program compute_halo_prop
         deallocate(pos_in_halo, m_in_halo)
         deallocate(pos_around_halo)
         deallocate(ids_around_halo)
+        deallocate(density)
      end if
   end do
 
