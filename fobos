@@ -2,8 +2,8 @@
 modes		=dist dist-no-parallel debug
 
 [common-variables]
-$cflags		=-c -i4 -r8 -gen-interfaces -warn interfaces -std15 -lfftw3  -check bounds -check pointers -traceback -I/softs/intel/compilers_and_libraries_2016.3.210/linux/mkl/include  -I/softs/fftw/3.3.4-pureintel/include -Itools/extrema/include -mkl -I/softs/intel/compilers_and_libraries_2016.3.210/linux/mkl/include -L/softs/fftw/3.3.4-pureintel/lib -mkl
-$lflags		=-L/softs/fftw/3.3.4-pureintel/lib -std15 -fPIC -lfftw3 -mkl
+$cflags		=-c -i4 -r8 -gen-interfaces -warn interfaces -std15 -check bounds -check pointers -traceback -I/softs/intel/compilers_and_libraries_2016.3.210/linux/mkl/include  -Itools/extrema/include -I/softs/intel/compilers_and_libraries_2016.3.210/linux/mkl/include -mkl=sequential -check arg_temp_created -I/softs/intel/mkl/include/fftw
+$lflags		=-std15 -fPIC -mkl=sequential
 
 [template-dir]
 mod_dir		=./mod/
@@ -32,13 +32,13 @@ jobs		=4
 template	=template-dist-dir
 help		=Compile for running
 compiler	=intel
-cflags		=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -qopenmp -parallel -fPIC
-lflags		=$lflags -qopenmp -parallel
+cflags		=$cflags -DBIG_RUN -Ofast -fp-model fast=2 -static -free -cpp -qopenmp -parallel -fPIC -g -p
+lflags		=$lflags -qopenmp -parallel -g -p
 jobs		=4
 
 [debug]
 template	=template-dir
 1help		=Compile for debugging
 compiler	=intel
-cflags		=$cflags -O0 -fno-alias -fno-fnalias -implicitnone -warn all -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs -g -check all -fpe0 -traceback -debug extended -fPIC
-lflags		=$lflags -g -O0 -debug -g -check all -fpe0 -warn -traceback -debug extended
+cflags		=$cflags -O0 -fno-alias -fno-fnalias -implicitnone -warn all -fp-stack-check -ftrapuv -heap-arrays -gen-interface -warn interface -fp-stack-check -ftrapu -qopenmp-stubs -g -check all -fpe0 -debug extended -fPIC -p -g
+lflags		=$lflags -g -O0 -debug -g -check all -fpe0 -warn -traceback -debug extended -p -qopenmp-stubs
