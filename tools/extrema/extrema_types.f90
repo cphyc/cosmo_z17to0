@@ -46,12 +46,6 @@ MODULE extrema_types
      logical      :: normalize=.true.
   end type CND_CNTRL_TYPE
 
-  type EXT_META
-     integer(I8B), allocatable :: l_map(:)
-     real(DP),     allocatable :: CNA(:, :), AtCNA(:, :)
-     integer(I8B) :: JITTER=0
-  end type EXT_META
-
   ! Input formats
   type inputformats
      integer :: mpgrafic=1, plain=0
@@ -59,13 +53,20 @@ MODULE extrema_types
 
   ! Output container for extrema
   type EXT_DATA
-     INTEGER(I8B) :: pix
+     INTEGER(I8B) :: pix(ndim)
      REAL(DP)     :: pos(3)
      REAL(DP)     :: eig(3)
      REAL(DP)     :: val
      INTEGER(I4B) :: typ
   end type EXT_DATA
 
+    type EXT_DATA_3D
+     INTEGER(I8B) :: pix(3)
+     REAL(DP)     :: pos(3)
+     REAL(DP)     :: eig(3)
+     REAL(DP)     :: val
+     INTEGER(I4B) :: typ
+  end type EXT_DATA_3D
   TYPE(inputformats), public  :: inputforms
   INTEGER(I8B),       public  :: NPIX
 

@@ -232,6 +232,8 @@ program compute_halo_prop
              'Reading cpu', tmp_int2, '/', infos%ncpu, ' (cpu=', cpu_list(cpu_i), &
              ', nparts=', nparts, ', loaded=', part_counter,')'
      end if
+
+     !$OMP CRITICAL
      do i = 1, nparts
         if ( pos(1, i) >= X0(1) .and. pos(1, i) < X1(1) .and. &
              pos(2, i) >= X0(2) .and. pos(2, i) < X1(2) .and. &
@@ -239,13 +241,13 @@ program compute_halo_prop
              ids(i) > 0 & ! only keep DM particles
              ) then
 
-           !$OMP ATOMIC
            part_counter = part_counter + 1
            pos_in_box(:, part_counter) = pos(:, i)
            m_in_box(part_counter)      = m(i)
            ids_in_box(part_counter)    = ids(i)
         end if
      end do
+     !$OMP END CRITICAL
   end do
   !$OMP END PARALLEL DO
 
@@ -262,8 +264,7 @@ program compute_halo_prop
   ! Once the particle read, for all complete halos
   ! compute the properties
   !-------------------------------------
-  do halo_i = 1, 10!nDM
-     print*, halo_i
+  do halo_i = 1, 5!nDM
      ! filter halos outside mass range and not in box
      if ( mDM(halo_i) > param_min_m .and. mDM(halo_i) < param_max_m .and. &
           (.not. halo_found_mask(halo_i)) ) then

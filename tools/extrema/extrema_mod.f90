@@ -15,20 +15,66 @@
 !
 
 MODULE extrema_mod
-  USE extrema_types
+  use extrema_types
+  use omp_lib
 
   IMPLICIT NONE
   PRIVATE
 
-  TYPE NEIGH_DATA
+  type NEIGH_DATA
      INTEGER(I8B)      :: pix
      REAL(DP)          :: val
      INTEGER(I4B)      :: xyz(3)
-  END TYPE NEIGH_DATA
+  end type NEIGH_DATA
 
-  PUBLIC  :: FIND_EXTREMA
+  type EXT_META
+     integer(I8B), allocatable :: l_map(:)
+     real(DP),     allocatable :: CNA(:, :), AtCNA(:, :)
+     integer(I8B) :: JITTER=0
+  end type EXT_META
+
+
+  integer(I4B), allocatable :: mod_ikvadr(:, :)
+  public  :: FIND_EXTREMA
 
 CONTAINS
+
+  subroutine find_extrema3d(dt, nn, nd, ext, ctrl)
+    real(dp), intent(in), dimension(:, :, :) :: data
+
+    integer :: nn
+
+    ! get the number of elements in each direction
+    forall(d=1:3) nn(d) = size(data, d)
+
+    ! loop over each point of the array
+    ! TODO: border
+    do k = 2, nn(3) - 1
+       do j = 2, nn(2) - 1
+          do i = 2, nn(1) - 1
+             ! Store the 27-1 neighbours
+             do nk = -1, 1
+                do nj = -1, 1
+                   do ni = -1, 1
+                      neighbour(i+ni, j+nj, k+nk)%val = data(i+ni, j+nj, k+nk) - data(i, j, k)
+                   end do
+                end do
+             end do
+             ! Do a quadratic fit
+             call 
+             ! Quadratic estimation
+             ! Get the position of maximum
+
+             if (extremum) then
+                ! Store the extremum
+             end if
+
+          end do
+       end do
+    end do
+
+
+  end subroutine find_extrema3d
 
   subroutine FIND_EXTREMA(dt, nn, nd, ext, ctrl)
 
@@ -38,10 +84,11 @@ CONTAINS
     type(CND_CNTRL_TYPE), intent(in), optional      :: ctrl
 
     integer(I8B)            :: ic, n_ext, n_ext_low, n_ext_up
-    integer(I4B)            :: nneigh, nparam
-    type(NEIGH_DATA)        :: neighbour_list(3**nd-1)
+    integer(I4B)            :: nparam, nneigh
+    type(NEIGH_DATA), save, allocatable :: all_neighbour_list(:, :) ! list of the neighours of each points
+    type(NEIGH_DATA)        :: neighbour_list(3**nd - 1), neighbour_list_new(3**nd - 1)
     type(EXT_DATA)          :: extc
-    type(EXT_META)          :: extmeta
+    type(EXT_META), save    :: extmeta
 
     logical                 :: ifextremum, ifjustprint
     real(SP)                :: dtc
@@ -52,6 +99,8 @@ CONTAINS
     integer :: i
 
     logical :: stop_now
+
+    logical, save :: firstCall = .true.
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Data read-in and setup
 
     NPIX = product(int(nn(1:nd), I8B))
@@ -81,11 +130,21 @@ CONTAINS
     nneigh = 3**nd - 1
     nparam = nd*(nd+3)/2
 
+    if (firstCall) then
+       allocate(all_neighbour_list(nneigh, 0:NPIX-1))
+       do ic = 0, NPIX-1
+          call preset_neighbours(nd, all_neighbour_list(:, ic), nneigh)
+       end do
+       ! neighbour_list = all_neighbour_list(:, 1)
+       ! call set_basis(nd, neighbour_list(:, 1), nneigh, nparam, extmeta)
+    end if
+
     call preset_neighbours(nd, neighbour_list, nneigh)
     call set_basis(nd, neighbour_list, nneigh, nparam, extmeta)
 
     if ( PRESENT(ctrl) ) then
        NPROC       = ctrl%nproc
+       if (NPROC == -1) NPROC = OMP_GET_MAX_THREADS()
        ifjustprint = ctrl%justprint
     endif
     NCHUNK  = NPIX/NPROC
@@ -93,20 +152,51 @@ CONTAINS
 
     n_ext = 0
     stop_now = .false.
-    !$OMP PARALLEL DEFAULT(SHARED)                             &
-    !$OMP private(dtc, ic, bfit, am, vm, xm, ifextremum, extc) &
+
+    ! Precompute the neighbours of each point
+    if (firstCall) then
+       ! print*, 'Precomputing neighbours'
+       do ic = 0, NPIX-1
+          call set_current_neighbours(dt, ic, nn, nd, all_neighbour_list(:, ic), nneigh)
+       end do
+    end if
+
+    !$OMP PARALLEL DEFAULT(SHARED)                                                 &
+    !$OMP private(dtc, ic, bfit, am, vm, xm, ifextremum, extc, neighbour_list_new) &
     !$OMP FIRSTPRIVATE(n_ext, neighbour_list) NUM_THREADS(NPROC)
     !$OMP DO SCHEDULE(DYNAMIC, NCHUNK)
     do ic = 0, NPIX-1
        ! Early break if stop_now flag is true
        if (stop_now) cycle
 
+       ! ! NEW CODE
+       ! neighour_list = all_neighbour_list(:, ic)
+
+       ! OLD CODE
+       neighbour_list_new = all_neighbour_list(:, ic)
        call set_current_neighbours(dt, ic, nn, nd, neighbour_list, nneigh)
+
+       if (any(neighbour_list_new(:)%pix /= neighbour_list(:)%pix)) then
+          write(*,*) 'f**k on pix'
+       end if
+       if (any(neighbour_list_new(:)%xyz(1) /= neighbour_list(:)%xyz(1))) then
+          write(*,*) 'f**k on xyz(1)'
+       end if
+       if (any(neighbour_list_new(:)%xyz(2) /= neighbour_list(:)%xyz(2))) then
+          write(*,*) 'f**k on xyz(2)'
+       end if
+       if (any(neighbour_list_new(:)%xyz(3) /= neighbour_list(:)%xyz(3))) then
+          write(*,*) 'f**k on xyz(3)'
+       end if
+       if (any(neighbour_list_new(:)%val /= neighbour_list(:)%val)) then
+          write(*,*) 'f**k on val'
+       end if
+
        ! fit quadratic to the neightbours
        call quadratic_fit(neighbour_list, nneigh, nparam, bfit, extmeta)
        call setmatrix(bfit, am, vm, nd)
        call findextremum(am, vm, xm, nd)
-       ifextremum=checkextremum(xm, ic, nn, nd, neighbour_list, nneigh, extmeta)
+       ifextremum = checkextremum(xm, ic, nn, nd, neighbour_list, nneigh, extmeta)
        if ( ifextremum ) then               ! do postprocessing
           dtc = dt(ic)
           call setmatrix(bfit, am, vm, nd)
@@ -127,10 +217,41 @@ CONTAINS
     !$OMP END DO
     !$OMP END PARALLEL
 
-    DEALLOCATE(extmeta%l_map)
+    deallocate(extmeta%l_map)
+    firstCall = .false.
     return
   END SUBROUTINE FIND_EXTREMA
 
+    !! Fill the neighbours with the positions of the neighbours (except for central one)
+  subroutine preset_neighbours_3D(nd, neighbour_list, nneigh)
+    integer(I4B),     intent(in)    :: nd, nneigh
+    type(NEIGH_DATA), intent(out)   :: neighbour_list(:,:,:)
+
+    integer(I4B), dimension(nd)     :: nn_neigh
+    integer(I8B)                    :: i
+    integer(I4B)                    :: nc
+    integer :: tmp_arr(3)
+
+    nn_neigh = 3
+    nc = 1
+    do k = 0, ndim - 1
+       do j = 0, ndim - 1
+          do i = 0, ndim - 1
+             if ((i == 1) .and. (j == 1) .and. (k == 1)) then
+             else
+                tmp_arr = (/i,j,k/)
+                neighbour_list(nc)%xyz = real(tmp_arr)
+                neighbour_list(nc)%pix = tmp_arr
+                nc = nc + 1
+             end if
+          end do
+       end do
+    end do
+
+    return
+  end subroutine preset_neighbours_3D
+
+  !! Fill the neighbours with the positions of the neighbours (except for central one)
   SUBROUTINE preset_neighbours(nd, neighbour_list, nneigh)
     integer(I4B),     intent(in)    :: nd, nneigh
     TYPE(NEIGH_DATA), intent(out)   :: neighbour_list(:)
@@ -150,6 +271,49 @@ CONTAINS
     return
   END SUBROUTINE preset_neighbours
 
+  subroutine set_basis_3D(nd, neighbour_list, nneigh, nparam, extmeta)
+    integer(I4B), intent(in)      :: nd, nneigh, nparam
+    type(NEIGH_DATA), intent(in)  :: neighbour_list(:)
+    type(EXT_META_3D), intent(inout) :: extmeta
+
+
+    REAL(DP),  dimension(nneigh, nparam)  :: AA
+    REAL(DP),  dimension(nneigh, nneigh)  :: CNpp
+
+    integer(I4B)                         :: i, j, ic
+
+    if (allocated(extmeta%CNA)) deallocate(extmeta%CNA)
+    if (allocated(extmeta%AtCNA)) deallocate(extmeta%AtCNA)
+    allocate(extmeta%CNA(nneigh, nparam))
+    allocate(extmeta%AtCNA(nparam, nparam))
+
+    ! Set basis
+    do i = 1, nd
+       AA(:, i) = neighbour_list(:)%xyz(i)
+       AA(:, i+nd) = 0.5_dp*AA(:, i)**2
+    enddo
+
+    ic=1
+    do j = 2, nd
+       do i = 1, j-1
+          AA(:, 2*nd+ic) = AA(:, i)*AA(:, j)
+          ic = ic+1
+       enddo
+    enddo
+
+    ! Set weights
+    CNpp = 0.d0
+    forall(i=1:nneigh) CNpp(i, i) = 1.d0/SUM(neighbour_list(i)%xyz(1:nd)**2)
+    !    forall(i=1:nneigh) CNpp(i, i) = 1.d0
+
+    call DSYMM('L', 'L', nneigh, nparam, 1.d0, CNpp, nneigh, AA, nneigh, 0.d0, &
+         extmeta%CNA, nneigh)
+    call DGEMM('T', 'N', nparam, nparam, nneigh, 1.d0, AA, nneigh, extmeta%CNA, nneigh, 0.d0,&
+         extmeta%AtCNA, nparam)
+    return
+  end subroutine set_basis_3D
+
+  !!
   subroutine set_basis(nd, neighbour_list, nneigh, nparam, extmeta)
     integer(I4B), intent(in)      :: nd, nneigh, nparam
     type(NEIGH_DATA), intent(in)  :: neighbour_list(:)
@@ -192,7 +356,8 @@ CONTAINS
     return
   END SUBROUTINE set_basis
 
-  SUBROUTINE  set_current_neighbours(dt, icell, nn, nd, neighbour_list, nneigh)
+  !> Set the neighbours around a cell
+  SUBROUTINE set_current_neighbours(dt, icell, nn, nd, neighbour_list, nneigh)
     real(SP),      intent(in), dimension(0:)      :: dt
     integer(I8B),  intent(in)                     :: icell
     integer(I4B),  intent(in), dimension(:)       :: nn
@@ -207,7 +372,7 @@ CONTAINS
     ijkc = index_to_grid(icell, nn, nd)
 
     do i = 1, nneigh
-       ijk = ikvadr(neighbour_list(i)%xyz(1:nd)+ijkc, nn)
+       ijk = ikvadr(neighbour_list(i)%xyz + ijkc, nn)
        ineigh = grid_to_index(ijk, nn, nd)
        neighbour_list(i)%pix = ineigh
        neighbour_list(i)%val = dt(ineigh) - dt(icell)
@@ -215,17 +380,55 @@ CONTAINS
     return
   END SUBROUTINE set_current_neighbours
 
+  subroutine precompute_ikvadr(nn, ikvadr, lbnd, ubnd)
+    integer(I4B), intent(in) :: nn(:)
+    integer, intent(in) :: lbnd, ubnd
+    integer(I4B), intent(inout) :: ikvadr(1:size(nn),lbnd:ubnd)
+
+    integer(I4B) :: i, d
+
+    do d = 1, size(nn)
+       do i = -nn(d), 2*nn(d)
+          ikvadr(d, i) = modulo(i, nn(d))
+       end do
+    end do
+  end subroutine precompute_ikvadr
+
   FUNCTION ikvadr(ijk, nn)
     integer(I4B), intent(in) :: ijk(:), nn(:)
     integer(I4B)             :: ikvadr(size(nn))
+    integer(I4B)             :: ikvadr2(size(nn))
 
-    where (ijk < 0 )
-       ikvadr = ijk + nn
-    elsewhere (ijk >= nn)
-       ikvadr = ijk - nn
-    elsewhere
-       ikvadr = ijk
-    endwhere
+    integer(I4B) :: d
+
+    logical,      save :: firstCall = .true.
+    integer(I4B), save, allocatable :: ikvadr_arr(:, :)
+
+    if (firstCall) then
+       !$OMP CRITICAL
+       if (allocated(ikvadr_arr)) deallocate(ikvadr_arr)
+       allocate(ikvadr_arr(1:size(nn), -maxval(nn):2*maxval(nn)))
+
+
+       firstCall = .false.
+       call precompute_ikvadr(nn, ikvadr_arr, lbound(ikvadr_arr, 2), ubound(ikvadr_arr, 2))
+       !$OMP END CRITICAL
+    end if
+
+    do d = 1, size(nn)
+       ikvadr(d) = ikvadr_arr(d, ijk(d))
+    end do
+
+    ! where (ijk < 0)
+    !    ikvadr2 = ijk + nn
+    ! elsewhere (ijk >= nn)
+    !    ikvadr2 = ijk - nn
+    ! elsewhere
+    !    ikvadr2 = ijk
+    ! endwhere
+
+    ! ikvadr = ikvadr2
+    ! if (any(ikvadr /= ikvadr2)) write(*, *) 'F**k'
     return
   END FUNCTION ikvadr
 
@@ -269,9 +472,23 @@ CONTAINS
     integer(I8B)                           :: grid_to_index
 
     integer                           :: i
+
+    integer(I8B), save, allocatable :: prod_dims(:)
+    logical, save :: firstCall = .true.
+
+    if (firstCall) then
+       allocate(prod_dims(2:size(nn)))
+       do i = 2, nd
+          prod_dims(i) = product(int(nn(1:i-1)))
+       end do
+       firstCall = .false.
+    end if
+
+
     grid_to_index = ijk(1)
     do i = 2, nd
-       grid_to_index=grid_to_index + ijk(i)*PRODUCT(int(nn(1:i-1), I8B))
+       grid_to_index = grid_to_index + ijk(i)*prod_dims(i)
+       ! if (product(int(nn(1:i-1), I8B)) /= prod_dims(i)) write(*, *) 'f**k 2'
     enddo
 
     return
@@ -287,7 +504,7 @@ CONTAINS
     integer(I4B)                            :: i
 
     icell=ic
-    do i=nd, 2, -1
+    do i = nd, 2, -1
        ibase=PRODUCT(nn(2:i))
        index_to_grid(i) = icell/ibase
        icell = icell - index_to_grid(i)*ibase
@@ -302,33 +519,46 @@ CONTAINS
     real(DP),         intent(out) :: bfit(:)
     type(EXT_META), intent(inout) :: extmeta
 
+    real(dp), allocatable         :: tmp_val(:)
+
     INTEGER(I4B)                               :: i, INFO
     REAL(DP), DIMENSION(40)                    :: WORK
     INTEGER(I4B), DIMENSION(nparam)            :: IPIV
     REAL(DP), DIMENSION(nparam, nparam)         :: AtCNA_loc
 
-
     AtCNA_loc = extmeta%AtCNA
 
-    call DGEMV('T', nneigh, nparam, 1._dp, extmeta%CNA, nneigh, neighbour_list(:)%val,&
+    allocate(tmp_val(size(neighbour_list)))
+    tmp_val = neighbour_list(:)%val
+
+    ! bfit := 1*CNA'*val.
+    call DGEMV('T', nneigh, nparam, 1._dp, extmeta%CNA, nneigh, tmp_val,&
          1, 0._dp, bfit, 1)
+    deallocate(tmp_val)
+
+    ! solves AtCNA_loc * X = bfit, thus getting the location
     call DSYSV('L', nparam, 1, AtCNA_loc, nparam, IPIV, bfit, nparam, WORK, 40, INFO)
 
     return
   END SUBROUTINE quadratic_fit
 
 
+  !> Solves A*X = -v, where
+  !! :param A the input array
+  !! :param v the value
   SUBROUTINE findextremum(a, v, x, nd)
     REAL(DP), intent(inout)  :: a(:, :), v(:)
     REAL(DP), intent(out)    :: x(:)
     INTEGER(I4B), intent(in) :: nd
 
     INTEGER(I4B)        :: INFO, IPIV(nd)
-    REAL(DP)            :: WORK(20)
+    integer, save       :: lwork = 20
+    real(DP)            :: WORK(lwork)
     ! as it is, matrix 'a' is destroyed and v is overwritten
 
     x = -v
-    call DSYSV( 'L', nd, 1, a, nd, IPIV, x, nd, WORK, 20, INFO )
+    call DSYSV( 'L', nd, 1, a, nd, IPIV, x, nd, WORK, lwork, INFO )
+    lwork = WORK(1)
 
     return
   END SUBROUTINE findextremum
@@ -379,7 +609,7 @@ CONTAINS
     INTEGER(I4B), intent(in)          :: nneigh, typ
     TYPE(NEIGH_DATA), intent(in)      :: neighbour_list(:)
     type(EXT_META), intent(inout) :: extmeta
-    
+
     INTEGER(I4B)                           :: i
 
     extmeta%l_map(vert) = typ
@@ -412,8 +642,10 @@ CONTAINS
     return
   END SUBROUTINE extremum_properties
 
+  !> Copies A first nd values into vm, the nd next into am diagonal
+  !! and the rest of a into the out-of-diagonal part
   SUBROUTINE setmatrix(a, am, vm, nd)
-    real(DP),  intent(in)    :: a(:)
+    real(DP),  intent(in)    :: a(:) !! test
     integer(I4B), intent(in) :: nd
     real(DP),  intent(out)   :: am(nd, nd), vm(nd)
 

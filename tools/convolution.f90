@@ -1,10 +1,11 @@
 module convolution
   use, intrinsic :: iso_c_binding
   use types
+
   implicit none
 
   include 'fftw3.f03'
-  ! use fftw3
+
 
   type :: CONV_T
      real(kind=8), allocatable    :: A(:,:,:), B(:,:,:), conv(:,:,:)
@@ -62,7 +63,7 @@ contains
     M = size(in, 2)
     N = size(in, 3)
 
-    cplx_in = cmplx(in)
+    cplx_in = cmplx(in, 0, 8)
 
     ! create plan
     plan = fftw_plan_dft_3d(N, M, L, cplx_in, out, FFTW_FORWARD, FFTW_ESTIMATE)
@@ -96,7 +97,7 @@ contains
     ! execute it
     call fftw_execute_dft(plan, in, cplx_out)
 
-    out = dble(cplx_out) / (L*M*N)
+    out = real(cplx_out, 8) / (L*M*N)
 
     ! delete plan
     call fftw_destroy_plan(plan)
