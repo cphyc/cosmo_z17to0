@@ -39,42 +39,6 @@ MODULE extrema_mod
 
 CONTAINS
 
-  subroutine find_extrema3d(dt, nn, nd, ext, ctrl)
-    real(dp), intent(in), dimension(:, :, :) :: data
-
-    integer :: nn
-
-    ! get the number of elements in each direction
-    forall(d=1:3) nn(d) = size(data, d)
-
-    ! loop over each point of the array
-    ! TODO: border
-    do k = 2, nn(3) - 1
-       do j = 2, nn(2) - 1
-          do i = 2, nn(1) - 1
-             ! Store the 27-1 neighbours
-             do nk = -1, 1
-                do nj = -1, 1
-                   do ni = -1, 1
-                      neighbour(i+ni, j+nj, k+nk)%val = data(i+ni, j+nj, k+nk) - data(i, j, k)
-                   end do
-                end do
-             end do
-             ! Do a quadratic fit
-             call 
-             ! Quadratic estimation
-             ! Get the position of maximum
-
-             if (extremum) then
-                ! Store the extremum
-             end if
-
-          end do
-       end do
-    end do
-
-
-  end subroutine find_extrema3d
 
   subroutine FIND_EXTREMA(dt, nn, nd, ext, ctrl)
 
@@ -222,35 +186,6 @@ CONTAINS
     return
   END SUBROUTINE FIND_EXTREMA
 
-    !! Fill the neighbours with the positions of the neighbours (except for central one)
-  subroutine preset_neighbours_3D(nd, neighbour_list, nneigh)
-    integer(I4B),     intent(in)    :: nd, nneigh
-    type(NEIGH_DATA), intent(out)   :: neighbour_list(:,:,:)
-
-    integer(I4B), dimension(nd)     :: nn_neigh
-    integer(I8B)                    :: i
-    integer(I4B)                    :: nc
-    integer :: tmp_arr(3)
-
-    nn_neigh = 3
-    nc = 1
-    do k = 0, ndim - 1
-       do j = 0, ndim - 1
-          do i = 0, ndim - 1
-             if ((i == 1) .and. (j == 1) .and. (k == 1)) then
-             else
-                tmp_arr = (/i,j,k/)
-                neighbour_list(nc)%xyz = real(tmp_arr)
-                neighbour_list(nc)%pix = tmp_arr
-                nc = nc + 1
-             end if
-          end do
-       end do
-    end do
-
-    return
-  end subroutine preset_neighbours_3D
-
   !! Fill the neighbours with the positions of the neighbours (except for central one)
   SUBROUTINE preset_neighbours(nd, neighbour_list, nneigh)
     integer(I4B),     intent(in)    :: nd, nneigh
@@ -270,48 +205,6 @@ CONTAINS
     enddo
     return
   END SUBROUTINE preset_neighbours
-
-  subroutine set_basis_3D(nd, neighbour_list, nneigh, nparam, extmeta)
-    integer(I4B), intent(in)      :: nd, nneigh, nparam
-    type(NEIGH_DATA), intent(in)  :: neighbour_list(:)
-    type(EXT_META_3D), intent(inout) :: extmeta
-
-
-    REAL(DP),  dimension(nneigh, nparam)  :: AA
-    REAL(DP),  dimension(nneigh, nneigh)  :: CNpp
-
-    integer(I4B)                         :: i, j, ic
-
-    if (allocated(extmeta%CNA)) deallocate(extmeta%CNA)
-    if (allocated(extmeta%AtCNA)) deallocate(extmeta%AtCNA)
-    allocate(extmeta%CNA(nneigh, nparam))
-    allocate(extmeta%AtCNA(nparam, nparam))
-
-    ! Set basis
-    do i = 1, nd
-       AA(:, i) = neighbour_list(:)%xyz(i)
-       AA(:, i+nd) = 0.5_dp*AA(:, i)**2
-    enddo
-
-    ic=1
-    do j = 2, nd
-       do i = 1, j-1
-          AA(:, 2*nd+ic) = AA(:, i)*AA(:, j)
-          ic = ic+1
-       enddo
-    enddo
-
-    ! Set weights
-    CNpp = 0.d0
-    forall(i=1:nneigh) CNpp(i, i) = 1.d0/SUM(neighbour_list(i)%xyz(1:nd)**2)
-    !    forall(i=1:nneigh) CNpp(i, i) = 1.d0
-
-    call DSYMM('L', 'L', nneigh, nparam, 1.d0, CNpp, nneigh, AA, nneigh, 0.d0, &
-         extmeta%CNA, nneigh)
-    call DGEMM('T', 'N', nparam, nparam, nneigh, 1.d0, AA, nneigh, extmeta%CNA, nneigh, 0.d0,&
-         extmeta%AtCNA, nparam)
-    return
-  end subroutine set_basis_3D
 
   !!
   subroutine set_basis(nd, neighbour_list, nneigh, nparam, extmeta)
