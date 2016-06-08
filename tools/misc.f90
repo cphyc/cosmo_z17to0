@@ -614,19 +614,25 @@ contains
 
     integer :: i, dim, iout
 
-    real(dp), dimension(3) :: maxis, minis, dist
+    real(dp), dimension(3) :: maxis, minis, dist, correction
     logical :: ok
 
     iout = 0
-    ! loop over each positions in in_arr
+    ! loop over each positions given in input
     do i = 1, size(idsin, 1)
        ok = .true.
        dist = in(:, i) - center
+       correction = 0
 
-       ! correct the distance with boundary conditions
+       ! correct the distance with boundary conditions (cannot exceed 0.5)
        do dim = 1, 3
-          if (dist(dim) >  0.5) dist(dim) = dist(dim) - 1
-          if (dist(dim) < -0.5) dist(dim) = dist(dim) + 1
+          if (dist(dim) >  0.5) then
+             dist(dim) = dist(dim) - 1
+             correction(dim) = -1
+          else if (dist(dim) < -0.5) then
+             dist(dim) = dist(dim) + 1
+             correction(dim) = 1
+          end if
 
           dist(dim) = abs(dist(dim))
 
@@ -645,7 +651,7 @@ contains
              idsout(iout) = idsin(i)
           end if
 
-          out(:, iout) = in(:, i)
+          out(:, iout) = in(:, i) + correction(:)
        end if
     end do
 

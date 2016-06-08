@@ -66,7 +66,8 @@ program compute_halo_prop
   integer                                    :: tmp_int, index, tmp_int2
   character(len=200)                         :: tmp_char
   real(dp), dimension(3)                     :: X0, X1
-  integer                                    :: max_nparts, step_i
+  integer                                    :: max_nparts, step_i, tmp_unit
+  logical :: tmp_bool
 
   !----------------------------------------
   ! FFT variables
@@ -260,11 +261,18 @@ program compute_halo_prop
   call quick_sort(ids_in_box(1:part_counter), order(1:part_counter))
   print*, '                          … sorted!'
 
+  ! just to know…
+  tmp_bool = .true.
+  do i = 1, part_counter
+     tmp_bool = tmp_bool .and. (order(i) == ids_in_box(i))
+  end do
+  print*, 'All equals, ain''t true?', tmp_bool
+
   !-------------------------------------
   ! Once the particle read, for all complete halos
   ! compute the properties
   !-------------------------------------
-  do halo_i = 1, 5!nDM
+  do halo_i = 1, nDM
      ! filter halos outside mass range and not in box
      if ( mDM(halo_i) > param_min_m .and. mDM(halo_i) < param_max_m .and. &
           (.not. halo_found_mask(halo_i)) ) then
@@ -319,7 +327,8 @@ program compute_halo_prop
            !-------------------------------------
            ! Estimate density
            !-------------------------------------
-           if (param_verbosity >= 4) write(*, *) halo_i, ': density estimation'
+           if (param_verbosity >= 4) write(*, *) halo_i, ': density estimation', &
+                parts_in_region, 'particles'
            call conv_density(data=pos_around_halo(:, :parts_in_region),&
                 nbin=param_nbin, dens=density, edges=edges)
 
@@ -334,10 +343,29 @@ program compute_halo_prop
            !----------------------------------------
            allocate(extrema(param_nbin**3))
 
+           !----------------------------------------
+           ! Save particle data
+           !----------------------------------------
+           write(tmp_char, '(a,i0.7)') '/home/cadiou/data/particles_around_halo/halo_', halo_i
+           open(newunit=tmp_unit, file=trim(tmp_char))
+           do i = 1, parts_in_region
+              write(tmp_unit, '(i7, 3(ES11.3e2),l3)') ids_around_halo(i), pos_around_halo(:, i), .false.
+           end do
+           do i = 1, members(halo_i)%parts
+              write(tmp_unit, '(i7, 3(ES11.3e2),l3)') members(halo_i)%ids(i), pos_in_halo(:, i), .true.
+           end do
+
+           close(tmp_unit)
+
            ! compute and get the extrema
            extrema_ctrl%nproc = -1
            extrema_ctrl%justprint = .false.
 
+           if (param_verbosity == 3) then
+              !OMP CRITICAL
+              write(*, '(i7,a)') halo_i, ': start'
+              !OMP END CRITICAL
+           end if
            !$no-OMP PARALLEL DO DEFAULT(none)                                          &
            !$no-OMP shared(param_nsigma, param_sigma_max, param_sigma_min, param_nbin) &
            !$no-OMP shared(param_verbosity, halo_i, extrema_ctrl, edges, pos_mean)     &

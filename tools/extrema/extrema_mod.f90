@@ -49,8 +49,7 @@ CONTAINS
 
     integer(I8B)            :: ic, n_ext, n_ext_low, n_ext_up
     integer(I4B)            :: nparam, nneigh
-    type(NEIGH_DATA), save, allocatable :: all_neighbour_list(:, :) ! list of the neighours of each points
-    type(NEIGH_DATA)        :: neighbour_list(3**nd - 1), neighbour_list_new(3**nd - 1)
+    type(NEIGH_DATA)        :: neighbour_list(3**nd - 1)
     type(EXT_DATA)          :: extc
     type(EXT_META), save    :: extmeta
 
@@ -94,21 +93,15 @@ CONTAINS
     nneigh = 3**nd - 1
     nparam = nd*(nd+3)/2
 
-    if (firstCall) then
-       allocate(all_neighbour_list(nneigh, 0:NPIX-1))
-       do ic = 0, NPIX-1
-          call preset_neighbours(nd, all_neighbour_list(:, ic), nneigh)
-       end do
-       ! neighbour_list = all_neighbour_list(:, 1)
-       ! call set_basis(nd, neighbour_list(:, 1), nneigh, nparam, extmeta)
-    end if
-
     call preset_neighbours(nd, neighbour_list, nneigh)
     call set_basis(nd, neighbour_list, nneigh, nparam, extmeta)
 
     if ( PRESENT(ctrl) ) then
        NPROC       = ctrl%nproc
-       if (NPROC == -1) NPROC = OMP_GET_MAX_THREADS()
+       if (NPROC == -1) then
+          NPROC = OMP_GET_MAX_THREADS()
+       end if
+
        ifjustprint = ctrl%justprint
     endif
     NCHUNK  = NPIX/NPROC
@@ -117,44 +110,15 @@ CONTAINS
     n_ext = 0
     stop_now = .false.
 
-    ! Precompute the neighbours of each point
-    if (firstCall) then
-       ! print*, 'Precomputing neighbours'
-       do ic = 0, NPIX-1
-          call set_current_neighbours(dt, ic, nn, nd, all_neighbour_list(:, ic), nneigh)
-       end do
-    end if
-
     !$OMP PARALLEL DEFAULT(SHARED)                                                 &
-    !$OMP private(dtc, ic, bfit, am, vm, xm, ifextremum, extc, neighbour_list_new) &
+    !$OMP private(dtc, ic, bfit, am, vm, xm, ifextremum, extc) &
     !$OMP FIRSTPRIVATE(n_ext, neighbour_list) NUM_THREADS(NPROC)
     !$OMP DO SCHEDULE(DYNAMIC, NCHUNK)
     do ic = 0, NPIX-1
        ! Early break if stop_now flag is true
        if (stop_now) cycle
 
-       ! ! NEW CODE
-       ! neighour_list = all_neighbour_list(:, ic)
-
-       ! OLD CODE
-       neighbour_list_new = all_neighbour_list(:, ic)
        call set_current_neighbours(dt, ic, nn, nd, neighbour_list, nneigh)
-
-       if (any(neighbour_list_new(:)%pix /= neighbour_list(:)%pix)) then
-          write(*,*) 'f**k on pix'
-       end if
-       if (any(neighbour_list_new(:)%xyz(1) /= neighbour_list(:)%xyz(1))) then
-          write(*,*) 'f**k on xyz(1)'
-       end if
-       if (any(neighbour_list_new(:)%xyz(2) /= neighbour_list(:)%xyz(2))) then
-          write(*,*) 'f**k on xyz(2)'
-       end if
-       if (any(neighbour_list_new(:)%xyz(3) /= neighbour_list(:)%xyz(3))) then
-          write(*,*) 'f**k on xyz(3)'
-       end if
-       if (any(neighbour_list_new(:)%val /= neighbour_list(:)%val)) then
-          write(*,*) 'f**k on val'
-       end if
 
        ! fit quadratic to the neightbours
        call quadratic_fit(neighbour_list, nneigh, nparam, bfit, extmeta)
@@ -290,38 +254,18 @@ CONTAINS
   FUNCTION ikvadr(ijk, nn)
     integer(I4B), intent(in) :: ijk(:), nn(:)
     integer(I4B)             :: ikvadr(size(nn))
-    integer(I4B)             :: ikvadr2(size(nn))
 
     integer(I4B) :: d
 
-    logical,      save :: firstCall = .true.
-    integer(I4B), save, allocatable :: ikvadr_arr(:, :)
 
-    if (firstCall) then
-       !$OMP CRITICAL
-       if (allocated(ikvadr_arr)) deallocate(ikvadr_arr)
-       allocate(ikvadr_arr(1:size(nn), -maxval(nn):2*maxval(nn)))
+    where (ijk < 0)
+       ikvadr = ijk + nn
+    elsewhere (ijk >= nn)
+       ikvadr = ijk - nn
+    elsewhere
+       ikvadr = ijk
+    endwhere
 
-
-       firstCall = .false.
-       call precompute_ikvadr(nn, ikvadr_arr, lbound(ikvadr_arr, 2), ubound(ikvadr_arr, 2))
-       !$OMP END CRITICAL
-    end if
-
-    do d = 1, size(nn)
-       ikvadr(d) = ikvadr_arr(d, ijk(d))
-    end do
-
-    ! where (ijk < 0)
-    !    ikvadr2 = ijk + nn
-    ! elsewhere (ijk >= nn)
-    !    ikvadr2 = ijk - nn
-    ! elsewhere
-    !    ikvadr2 = ijk
-    ! endwhere
-
-    ! ikvadr = ikvadr2
-    ! if (any(ikvadr /= ikvadr2)) write(*, *) 'F**k'
     return
   END FUNCTION ikvadr
 
@@ -445,14 +389,15 @@ CONTAINS
     INTEGER(I4B), intent(in) :: nd
 
     INTEGER(I4B)        :: INFO, IPIV(nd)
-    integer, save       :: lwork = 20
-    real(DP)            :: WORK(lwork)
+    integer, save       :: lwork
+    real(DP)            :: WORK(40)
     ! as it is, matrix 'a' is destroyed and v is overwritten
+
+    if (lwork == 0) lwork = -1
 
     x = -v
     call DSYSV( 'L', nd, 1, a, nd, IPIV, x, nd, WORK, lwork, INFO )
-    lwork = WORK(1)
-
+    lwork = int(WORK(1))
     return
   END SUBROUTINE findextremum
 

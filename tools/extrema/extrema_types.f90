@@ -53,7 +53,7 @@ MODULE extrema_types
 
   ! Output container for extrema
   type EXT_DATA
-     INTEGER(I8B) :: pix(ndim)
+     INTEGER(I8B) :: pix
      REAL(DP)     :: pos(3)
      REAL(DP)     :: eig(3)
      REAL(DP)     :: val
