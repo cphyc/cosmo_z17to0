@@ -1,5 +1,6 @@
 module misc
   use types
+  use omp_lib
 
   implicit none
 
@@ -612,23 +613,40 @@ contains
     integer, intent(out), optional                             :: parts_in_region
     integer, dimension(:), intent(out)                         :: idsout
 
-    integer :: i, dim, iout
+    integer :: i, dim, iout, tmp_iout
 
     real(dp), dimension(3) :: maxis, minis, dist, correction
     logical :: ok
 
-    iout = 0
-    ! loop over each positions given in input
+    real(dp) :: start
+    integer :: nthreads, thread, from, to, step, nfound_shared, nfound, part_i
+    integer, allocatable, dimension(:) :: tmp_ids
 
-    !$OMP PARALLEL DO default(none)                   &
-    !$OMP SHARED(idsin, idsout, out, order, iout, in) &
-    !$OMP FIRSTPRIVATE(center, width)                 &
-    !$OMP PRIVATE(ok, dist, correction)               &
-    !$OMP SCHEDULE(DYNAMIC, 1000000)
-    do i = 1, size(idsin, 1)
+    iout = 0
+
+    start = OMP_GET_WTIME()
+    nthreads = OMP_GET_MAX_THREADS()
+    step = ceiling(1d0 * size(idsin, 1) / nthreads)
+
+    nfound_shared = 0
+
+    !$OMP PARALLEL DEFAULT(none)                                       &
+    !$OMP PRIVATE(thread, from, to, ok, dist, correction, dim, part_i) &
+    !$OMP PRIVATE(tmp_ids, nfound)                                     &
+    !$OMP FIRSTPRIVATE(nthreads, step, center, width)                  &
+    !$OMP SHARED(idsin, nfound_shared, order, in, idsout, out)
+    thread = OMP_GET_THREAD_NUM()
+    from = step * thread + 1
+    to   = min(step * (thread + 1), size(idsin, 1))
+    nfound = 0
+
+    allocate(tmp_ids(to-from+1))
+
+    write(*, '(i4,*(a,i9))') thread, ': from', from, ' to', to
+
+    do part_i = from, to
        ok = .true.
-       dist = in(:, i) - center
-       correction = 0
+       dist = in(:, part_i) - center
 
        ! correct the distance with boundary conditions (cannot exceed 0.5)
        do dim = 1, 3
@@ -638,33 +656,46 @@ contains
           else if (dist(dim) < -0.5) then
              dist(dim) = dist(dim) + 1
              correction(dim) = 1
+          else
+             correction(dim) = 0
           end if
 
-          dist(dim) = abs(dist(dim))
-
-          if (dist(dim) > width(dim)) then
+          if (abs(dist(dim)) > width(dim)) then
              ok = .false.
-             exit
           end if
        end do
 
        if (ok) then
-          !$OMP CRITICAL
-
-          iout = iout + 1
-          if (present(order)) then
-             ! get the real id using order array
-             idsout(iout) = idsin(order(i))
-          else
-             idsout(iout) = idsin(i)
-          end if
-
-          out(:, iout) = in(:, i) + correction(:)
-          !$OMP END CRITICAL
+          nfound = nfound + 1
+          tmp_ids(nfound) = part_i ! tmp_ids(i) contains the index
        end if
     end do
+    write(*, '(i4,*(a,i9))') thread, ': from', from, ' to', to
 
-    parts_in_region = iout
+    ! copy the result in the shared array
+    !$OMP CRITICAL
+    write(*, '(i4,a,i9)') thread, ': nfound (3)', nfound
+    do i = 1, nfound
+       nfound_shared = nfound_shared + 1
+
+       part_i = tmp_ids(i)
+       ! write(*, '(i4,*(a,i9))') thread, ': part_i ', part_i, 'i', i
+
+       if (present(order)) then
+          idsout(nfound_shared) = idsin(order(part_i))
+       else
+          idsout(nfound_shared) = idsin(part_i)
+       end if
+
+       out(:, nfound_shared) = in(:, part_i)
+    end do
+    !$OMP END CRITICAL
+    deallocate(tmp_ids)
+    !$OMP END PARALLEL
+
+    write(*, *) 'Took', OMP_GET_WTIME() - start
+
+    parts_in_region = nfound_shared
   end subroutine filter_region
 
   !! Finds the indexes of B in A when both arrays are sorted
