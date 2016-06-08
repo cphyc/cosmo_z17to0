@@ -619,6 +619,12 @@ contains
 
     iout = 0
     ! loop over each positions given in input
+
+    !$OMP PARALLEL DO default(none)                   &
+    !$OMP SHARED(idsin, idsout, out, order, iout, in) &
+    !$OMP FIRSTPRIVATE(center, width)                 &
+    !$OMP PRIVATE(ok, dist, correction)               &
+    !$OMP SCHEDULE(DYNAMIC, 1000000)
     do i = 1, size(idsin, 1)
        ok = .true.
        dist = in(:, i) - center
@@ -626,7 +632,7 @@ contains
 
        ! correct the distance with boundary conditions (cannot exceed 0.5)
        do dim = 1, 3
-          if (dist(dim) >  0.5) then
+          if (dist(dim) > 0.5) then
              dist(dim) = dist(dim) - 1
              correction(dim) = -1
           else if (dist(dim) < -0.5) then
@@ -643,6 +649,8 @@ contains
        end do
 
        if (ok) then
+          !$OMP CRITICAL
+
           iout = iout + 1
           if (present(order)) then
              ! get the real id using order array
@@ -652,6 +660,7 @@ contains
           end if
 
           out(:, iout) = in(:, i) + correction(:)
+          !$OMP END CRITICAL
        end if
     end do
 
