@@ -667,6 +667,48 @@ contains
     parts_in_region = iout
   end subroutine filter_region
 
+  !! Finds the indexes of B in A when both arrays are sorted
+  !! The subroutine finds the position of B's leftmost and rightmost values
+  !! into A. All the remaining values are within left[B], right[B]
+  !! and therefore within A[index(left[B]), index(right[B])]
+  !! this is then repeated until all elements of B are exhausted
+  subroutine indexOfArr(B, A, indexArr)
+    integer, intent(in), dimension(:) :: A, B
+    integer, intent(out), dimension(size(B))&
+                                      :: indexArr
+
+    integer :: left, right, i, j
+    left  = 1
+    right = size(A)
+
+    i = 1
+    j = size(B)
+
+    do while (i <= j)
+       ! Look left one in subset of A
+       indexArr(i) = indexOf(B(i), A(left:right))
+       if (indexArr(i) > 0) then
+          indexArr(i) = indexArr(i) + left - 1
+          left = indexArr(i)
+       end if
+
+       if (j == i) exit
+       i = i + 1
+
+       ! Look right one in subset of A
+       indexArr(j) = indexOf(B(j), A(left:right))
+       if (indexArr(j) > 0) then
+          indexArr(j) = indexArr(j) + left - 1
+          right = indexArr(j)
+       end if
+
+       j = j - 1
+    end do
+
+
+  end subroutine indexOfArr
+
+
 end module misc
 !-------------------------------------
 ! To interface

@@ -64,6 +64,7 @@ program compute_halo_prop
   !-------------------------------------
   integer                                    :: i, counter, cpu_i, x, y, z, dim
   integer                                    :: tmp_int, index, tmp_int2
+  integer, allocatable                       :: indexes(:)
   character(len=200)                         :: tmp_char
   real(dp), dimension(3)                     :: X0, X1
   integer                                    :: max_nparts, step_i, tmp_unit
@@ -159,7 +160,7 @@ program compute_halo_prop
   print*, ''
   print*, 'Writing output in ', trim(tmp_char)
   open(newunit=unit_output, file=trim(tmp_char))
-  write(unit_output, '(a7, a7, a14, 3a8, *(a14))' ) &
+  write(unit_output, '(a9, a5, a14, 3a8, *(a14))' ) &
        'halo_i', 'type', 'sigma', 'pixel',&
        'x', 'y', 'z', 'ex', 'ey', 'ez', 'eigval', &
        'centerx', 'centery', 'centerz', 'minx', 'miny', 'minz', &
@@ -254,19 +255,42 @@ program compute_halo_prop
 
   allocate(order(part_counter))
   print*, 'Sorting array (len=', part_counter, ')…'
-  ! Sort the ids
-  ! call parallel_sort(ids_in_box(1:part_counter), order(1:part_counter))
-  ! print*, '   … ordered, now sorting …'
-  ! ids_in_box(1:part_counter) = ids_in_box(order(1:part_counter))
-  call quick_sort(ids_in_box(1:part_counter), order(1:part_counter))
+
+  ! if we've all the particles, simply 'reverse' the ids to get the order
+  ! because particle with id 'n' is at position 'n' when ordered
+  if (part_counter == max_nparts) then
+     print*, 'Using trick for sorting :D'
+     do i = 1, part_counter
+        order(ids_in_box(i)) = i
+     end do
+     print*, ' … ordering ids …'
+     ids_in_box = ids_in_box(order)
+  else
+     print*, 'Using parallel sort for sorting :(. Get a coffee, ain''t finish soon.'
+     ! Sort the ids
+     ! call parallel_sort(ids_in_box(1:part_counter), order(1:part_counter))
+     ! ids_in_box(1:part_counter) = ids_in_box(order(1:part_counter))
+     ! tmp_bool = .true.
+
+     ! do i = 1, part_counter
+     !    tmp_bool = tmp_bool .and. (ids_in_box(i) == i)
+     ! end do
+
+     call quick_sort(ids_in_box(1:part_counter), order(1:part_counter))
+  end if
+
   print*, '                          … sorted!'
+  print*, '    …ordering masses and positions as well'
+  do i = 1, part_counter
+     do dim = 1, 3
+        pos_in_box(dim, i) = pos_in_box(dim, order(i))
+     end do
+     m_in_box(i) = m_in_box(order(i))
+  end do
+
+
 
   ! just to know…
-  tmp_bool = .true.
-  do i = 1, part_counter
-     tmp_bool = tmp_bool .and. (order(i) == ids_in_box(i))
-  end do
-  print*, 'All equals, ain''t true?', tmp_bool
 
   !-------------------------------------
   ! Once the particle read, for all complete halos
@@ -283,23 +307,31 @@ program compute_halo_prop
         allocate(pos_around_halo(infos%ndim, max_nparts))
         allocate(ids_around_halo(max_nparts))
         allocate(density(param_nbin, param_nbin, param_nbin))
+        allocate(indexes(members(halo_i)%parts))
+
 
         ! get the particles in the region around the halo
+        call indexOfArr(members(halo_i)%ids, ids_in_box(1:part_counter), indexes)
         counter = 0
         do part_i = 1, members(halo_i)%parts
            index = indexOf(members(halo_i)%ids(part_i), ids_in_box(1:part_counter))
            if (index > 0) then
-              pos_in_halo(:, part_i) = pos_in_box(:, order(index))
-              m_in_halo(part_i)      = m_in_box(order(index))
+              pos_in_halo(:, part_i) = pos_in_box(:, index)
+              m_in_halo(part_i)      = m_in_box(index)
               counter = counter + 1
            end if
+
+           if (indexes(part_i) /= index) then
+              write(*, *) 'F**k', members(halo_i)%parts, part_i, indexes(part_i), index
+           end if
+
         end do
 
         ! cheers (once) if complete
         if ((counter == members(halo_i)%parts) .and. & ! cheers if complete …
              (.not. halo_found_mask(halo_i))) then     ! … only once
            if (param_verbosity >= 2) then
-              print*, halo_i, 'is complete'
+              write(*, '(i7,a)') halo_i, ': complete'
            end if
 
            !$OMP CRITICAL
@@ -315,27 +347,27 @@ program compute_halo_prop
            !----------------------------------------
            ! Get particles in neighboorhood
            !----------------------------------------
-           if (param_verbosity >= 4) write(*, *) halo_i, ': filtering'
+           if (param_verbosity >= 4) write(*, '(i7,a)') halo_i, ': filtering'
 
            width = (/param_around, param_around, param_around /)
            call filter_region(center=pos_mean, &
                 width=  width, &
                 idsin=  ids_in_box(1:part_counter),  in=  pos_in_box(:,1:part_counter), &
                 idsout= ids_around_halo, out= pos_around_halo, &
-                parts_in_region= parts_in_region, order= order)
+                parts_in_region= parts_in_region)
 
            !-------------------------------------
            ! Estimate density
            !-------------------------------------
-           if (param_verbosity >= 4) write(*, *) halo_i, ': density estimation', &
-                parts_in_region, 'particles'
+           if (param_verbosity >= 4) write(*, '(i7,a,i9,a)') halo_i, ': density estimation (', &
+                parts_in_region, ' particles)'
            call conv_density(data=pos_around_halo(:, :parts_in_region),&
                 nbin=param_nbin, dens=density, edges=edges)
 
            !----------------------------------------
            ! Compute the FFT
            !----------------------------------------
-           if (param_verbosity >= 4) write(*, *) halo_i, ': fft of density'
+           if (param_verbosity >= 4) write(*, '(i7,a)') halo_i, ': fft of density'
            call conv%init_A(density)
 
            !----------------------------------------
@@ -347,12 +379,14 @@ program compute_halo_prop
            ! Save particle data
            !----------------------------------------
            write(tmp_char, '(a,i0.7)') '/home/cadiou/data/particles_around_halo/halo_', halo_i
+           if (param_verbosity >= 4) write(*, '(i7,a, a)') halo_i, ': saving in ', trim(tmp_char)
            open(newunit=tmp_unit, file=trim(tmp_char))
+           write(tmp_unit, '(a9, 3a11, a5)') 'id', 'x', 'y', 'z', 'in_h'
            do i = 1, parts_in_region
-              write(tmp_unit, '(i7, 3(ES11.3e2),l3)') ids_around_halo(i), pos_around_halo(:, i), .false.
+              write(tmp_unit, '(i9, 3(ES11.3e2),l5)') ids_around_halo(i), pos_around_halo(:, i), .false.
            end do
            do i = 1, members(halo_i)%parts
-              write(tmp_unit, '(i7, 3(ES11.3e2),l3)') members(halo_i)%ids(i), pos_in_halo(:, i), .true.
+              write(tmp_unit, '(i9, 3(ES11.3e2),l5)') members(halo_i)%ids(i), pos_in_halo(:, i), .true.
            end do
 
            close(tmp_unit)
@@ -407,19 +441,22 @@ program compute_halo_prop
 
               ! save output
               !$OMP CRITICAL
+              tmp_int = 0
               do i = 1, param_nbin**3
                  if (extrema(i)%typ > 0) then
-                    write(unit_output, '(i7, i7, ES14.6e2, i8, *(ES14.6e2))' )&
+                    write(unit_output, '(i10, i5, ES14.6e2, i8, *(ES14.6e2))' )&
                          halo_i, extrema(i)%typ, sigma, extrema(i)%pix, &
                          extrema(i)%pos, extrema(i)%eig, extrema(i)%val, &
                          pos_mean(1), pos_mean(2), pos_mean(3), &
                          edges(:, 1), edges(:, param_nbin+1)
+                    tmp_int = tmp_int + 1
                  end if
               end do
+              if (param_verbosity >= 4) write(*, '(2(i7,a))') halo_i, ': found ', tmp_int, ' extrema'
               !$OMP END CRITICAL
            end do
            ! free memory
-           if (param_verbosity >= 4) write(*, *) halo_i, ': free'
+           if (param_verbosity >= 4) write(*, '(i7,a)') halo_i, ': free'
            call conv%free()
            deallocate(extrema)
         else
@@ -432,6 +469,7 @@ program compute_halo_prop
         deallocate(pos_around_halo)
         deallocate(ids_around_halo)
         deallocate(density)
+        deallocate(indexes)
      end if
   end do
 
