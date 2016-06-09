@@ -635,6 +635,7 @@ contains
     !$OMP PRIVATE(tmp_ids, nfound)                                     &
     !$OMP FIRSTPRIVATE(nthreads, step, center, width)                  &
     !$OMP SHARED(idsin, nfound_shared, order, in, idsout, out)
+
     thread = OMP_GET_THREAD_NUM()
     from = step * thread + 1
     to   = min(step * (thread + 1), size(idsin, 1))
@@ -642,10 +643,7 @@ contains
 
     allocate(tmp_ids(to-from+1))
 
-    write(*, '(i4,*(a,i9))') thread, ': from', from, ' to', to
-
     do part_i = from, to
-       ok = .true.
        dist = in(:, part_i) - center
 
        ! correct the distance with boundary conditions (cannot exceed 0.5)
@@ -659,22 +657,18 @@ contains
           else
              correction(dim) = 0
           end if
-
-          if (abs(dist(dim)) > width(dim)) then
-             ok = .false.
-          end if
        end do
+
+       ok = all(abs(dist) < width)
 
        if (ok) then
           nfound = nfound + 1
           tmp_ids(nfound) = part_i ! tmp_ids(i) contains the index
        end if
     end do
-    write(*, '(i4,*(a,i9))') thread, ': from', from, ' to', to
 
     ! copy the result in the shared array
     !$OMP CRITICAL
-    write(*, '(i4,a,i9)') thread, ': nfound (3)', nfound
     do i = 1, nfound
        nfound_shared = nfound_shared + 1
 
@@ -697,6 +691,84 @@ contains
 
     parts_in_region = nfound_shared
   end subroutine filter_region
+
+   !> Filter the region around center, with size width
+  !! inputs:
+  !! -----------
+  !!   - center: the center, in ramses units
+  !!   - width: the width, in ramses units
+  !!   - idsins: the ids of the particles
+  !!   - in : the position of the particles
+  !!   - order, optional: the order of the ids
+  !! outputs:
+  !! --------
+  !!   - idsout: the ids of the particles found
+  !!   - out: the position of the particles
+  !!   - parts_in_region: number of particles in the region
+  subroutine filter_region_no_omp(center, width, idsin, in, idsout, out, parts_in_region, &
+       order)
+    real(dp), dimension(3), intent(in)                         :: center, width
+    real(dp), dimension(:, :), intent(in)                      :: in
+    integer, dimension(:), intent(in)                          :: idsin
+    integer, dimension(:), intent(in), optional                :: order ! if the idsin have been sorted
+    real(dp), dimension(size(in, 1), size(in, 2)), intent(out) :: out
+    integer, intent(out), optional                             :: parts_in_region
+    integer, dimension(:), intent(out)                         :: idsout
+
+    integer :: i, dim, iout
+
+    real(dp), dimension(3) :: maxis, minis, dist, correction
+    logical :: ok
+
+    iout = 0
+    ! loop over each positions given in input
+
+    !$nOMP PARALLEL DO default(none)                   &
+    !$nOMP SHARED(idsin, idsout, out, order, iout, in) &
+    !$nOMP FIRSTPRIVATE(center, width)                 &
+    !$nOMP PRIVATE(ok, dist, correction)               &
+    !$nOMP SCHEDULE(DYNAMIC, 1000000)
+    do i = 1, size(idsin, 1)
+       ok = .true.
+       dist = in(:, i) - center
+       correction = 0
+
+       ! correct the distance with boundary conditions (cannot exceed 0.5)
+       do dim = 1, 3
+          if (dist(dim) > 0.5) then
+             dist(dim) = dist(dim) - 1
+             correction(dim) = -1
+          else if (dist(dim) < -0.5) then
+             dist(dim) = dist(dim) + 1
+             correction(dim) = 1
+          end if
+
+          dist(dim) = abs(dist(dim))
+
+          if (dist(dim) > width(dim)) then
+             ok = .false.
+             exit
+          end if
+       end do
+
+       if (ok) then
+          !$OMP CRITICAL
+
+          iout = iout + 1
+          if (present(order)) then
+             ! get the real id using order array
+             idsout(iout) = idsin(order(i))
+          else
+             idsout(iout) = idsin(i)
+          end if
+
+          out(:, iout) = in(:, i) + correction(:)
+          !$OMP END CRITICAL
+       end if
+    end do
+
+    parts_in_region = iout
+  end subroutine filter_region_no_omp
 
   !! Finds the indexes of B in A when both arrays are sorted
   !! The subroutine finds the position of B's leftmost and rightmost values
