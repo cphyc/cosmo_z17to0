@@ -218,7 +218,7 @@ program compute_halo_prop
   !$OMP PRIVATE(tmp_int)                                              &
   !$OMP FIRSTPRIVATE(unit_output)                                     &
   !$OMP SCHEDULE(guided, 1)
-  do cpu_i = 1, 200!infos%ncpu
+  do cpu_i = 1, infos%ncpu
      if (cpu_list(cpu_i) == 0) then
         cycle
      end if
@@ -269,28 +269,11 @@ program compute_halo_prop
      print*, 'Using parallel sort for sorting :(. Get a coffee, ain''t finish soon.'
      ! Sort the ids
      ! call parallel_sort(ids_in_box(1:part_counter), order(1:part_counter))
-     ! ids_in_box(1:part_counter) = ids_in_box(order(1:part_counter))
-     ! tmp_bool = .true.
-
-     ! do i = 1, part_counter
-     !    tmp_bool = tmp_bool .and. (ids_in_box(i) == i)
-     ! end do
 
      call quick_sort(ids_in_box(1:part_counter), order(1:part_counter))
   end if
 
   print*, '                          … sorted!'
-  print*, '    …ordering masses and positions as well'
-  do i = 1, part_counter
-     do dim = 1, 3
-        pos_in_box(dim, i) = pos_in_box(dim, order(i))
-     end do
-     m_in_box(i) = m_in_box(order(i))
-  end do
-
-
-
-  ! just to know…
 
   !-------------------------------------
   ! Once the particle read, for all complete halos
@@ -316,8 +299,8 @@ program compute_halo_prop
         do part_i = 1, members(halo_i)%parts
            index = indexOf(members(halo_i)%ids(part_i), ids_in_box(1:part_counter))
            if (index > 0) then
-              pos_in_halo(:, part_i) = pos_in_box(:, index)
-              m_in_halo(part_i)      = m_in_box(index)
+              pos_in_halo(:, part_i) = pos_in_box(:, order(index))
+              m_in_halo(part_i)      = m_in_box(order(index))
               counter = counter + 1
            end if
 
@@ -354,7 +337,7 @@ program compute_halo_prop
                 width=  width, &
                 idsin=  ids_in_box(1:part_counter),  in=  pos_in_box(:,1:part_counter), &
                 idsout= ids_around_halo, out= pos_around_halo, &
-                parts_in_region= parts_in_region)
+                parts_in_region= parts_in_region, order=order)
 
            !-------------------------------------
            ! Estimate density
