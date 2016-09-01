@@ -569,18 +569,18 @@ contains
        ! keep the indexes of the particles within bounds
        allocate(mask(nparts))
        mask = .true.
-       do part_i = 1, nparts
+       do part_i = 1, nparts          
           do dim = 1, ndim
              ! rule out particles outside region
              ! if the distance is larger than width
 
              dist = dt%pos(dim, part_i) - center(dim)
-             ! correct distances if farther than 0.5 units
+             ! correct distances if further than 0.5 units
              if (dist > 0.5) then
-                dist = dist - 1d0
+                dist = abs(dist - 1d0)
                 dt%pos(dim, part_i) = dt%pos(dim, part_i) - 1d0
-             else if (dist < -0.5) then
-                dist = dist + 1d0
+             else if (dist < -0.5d0) then
+                dist = abs(dist + 1d0)
                 dt%pos(dim, part_i) = dt%pos(dim, part_i) + 1d0
              else
                 dist = abs(dist)
