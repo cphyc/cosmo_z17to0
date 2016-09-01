@@ -78,7 +78,6 @@ program compute_halo_prop
   ! Iterate over each output
   !-------------------------------------
   call read_info_headers(param_output_path, param_output_number, infos)
-
   call read_region(center, region_size, infos, data)
 
   write(*,*) 'Output to ', trim(param_output_prefix)
@@ -102,8 +101,8 @@ program compute_halo_prop
   tmp_int2 = 1
   do i = 1, size(data)
      do j = 1, size(data(i)%ids)
-        tmp_iarr(tmp_int) = data(i)%ids(j)
-        tmp_dblarr(:, tmp_int) = data(i)%pos(:, j)
+        tmp_iarr(tmp_int2) = data(i)%ids(j)
+        tmp_dblarr(:, tmp_int2) = data(i)%pos(:, j)
 
         tmp_int2 = tmp_int2 + 1
      end do
