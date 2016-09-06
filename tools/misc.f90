@@ -620,7 +620,7 @@ contains
 
     real(dp) :: start
     integer :: nthreads, thread, from, to, step, nfound_shared, nfound, part_i
-    integer, allocatable, dimension(:) :: tmp_ids
+    ! integer, allocatable, dimension(:) :: tmp_ids
 
     iout = 0
 
@@ -632,7 +632,7 @@ contains
 
     !$OMP PARALLEL DEFAULT(none)                                       &
     !$OMP PRIVATE(thread, from, to, ok, dist, correction, dim, part_i) &
-    !$OMP PRIVATE(tmp_ids, nfound)                                     &
+    !$OMP PRIVATE(nfound)                                              &
     !$OMP FIRSTPRIVATE(nthreads, step, center, width)                  &
     !$OMP SHARED(idsin, nfound_shared, order, in, idsout, out)
 
@@ -641,7 +641,9 @@ contains
     to   = min(step * (thread + 1), size(idsin, 1))
     nfound = 0
 
-    allocate(tmp_ids(to-from+1))
+    !  allocate(tmp_ids(to-from+1))
+
+    print*, width
 
     do part_i = from, to
        dist = in(:, part_i) - center
@@ -649,43 +651,56 @@ contains
        ! correct the distance with boundary conditions (cannot exceed 0.5)
        do dim = 1, 3
           if (dist(dim) > 0.5) then
-             dist(dim) = dist(dim) - 1
-             correction(dim) = -1
+             dist(dim) = abs(dist(dim) - 1d0)
+             correction(dim) = -1d0
           else if (dist(dim) < -0.5) then
-             dist(dim) = dist(dim) + 1
-             correction(dim) = 1
+             dist(dim) = abs(dist(dim) + 1d0)
+             correction(dim) = 1d0
           else
-             correction(dim) = 0
+             dist(dim) = abs(dist(dim))
+             correction(dim) = 0d0
           end if
        end do
 
-       ok = all(abs(dist) < width)
+       ok = all(dist < width)
 
        if (ok) then
-          nfound = nfound + 1
-          tmp_ids(nfound) = part_i ! tmp_ids(i) contains the index
+          !nfound = nfound + 1
+          !tmp_ids(nfound) = part_i ! tmp_ids(i) contains the index
+
+          ! TODO: actually apply the correction...
+          !$OMP CRITICAL
+          nfound_shared = nfound_shared + 1
+          if (present(order)) then
+             idsout(nfound_shared) = idsin(order(part_i))
+          else
+             idsout(nfound_shared) = idsin(part_i)
+          end if
+
+          out(:, nfound_shared) = in(:, part_i) + correction(:)
+          !$OMP END CRITICAL
        end if
     end do
+    !$OMP END PARALLEL
 
     ! copy the result in the shared array
-    !$OMP CRITICAL
-    do i = 1, nfound
-       nfound_shared = nfound_shared + 1
+    ! !$OMP CRITICAL
+    ! do i = 1, nfound
+    !    nfound_shared = nfound_shared + 1
 
-       part_i = tmp_ids(i)
-       ! write(*, '(i4,*(a,i9))') thread, ': part_i ', part_i, 'i', i
+    !    part_i = tmp_ids(i)
+    !    ! write(*, '(i4,*(a,i9))') thread, ': part_i ', part_i, 'i', i
 
-       if (present(order)) then
-          idsout(nfound_shared) = idsin(order(part_i))
-       else
-          idsout(nfound_shared) = idsin(part_i)
-       end if
+    !    if (present(order)) then
+    !       idsout(nfound_shared) = idsin(order(part_i))
+    !    else
+    !       idsout(nfound_shared) = idsin(part_i)
+    !    end if
 
-       out(:, nfound_shared) = in(:, part_i)
-    end do
-    !$OMP END CRITICAL
-    deallocate(tmp_ids)
-    !$OMP END PARALLEL
+    !    out(:, nfound_shared) = in(:, part_i)
+    ! end do
+    ! !$OMP END CRITICAL
+    ! deallocate(tmp_ids)
 
     write(*, *) 'Took', OMP_GET_WTIME() - start
 
